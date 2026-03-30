@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.venv/
+venv/
+
+# Artifacts (runs, embeddings, cached datasets)
+artifacts/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor noise
+*.Zone.Identifier
+.DS_Store
+Thumbs.db
+
+# Local datasets
+datasets/
+
+
+# VS Code
+
+.vscode/
+
+# Codex app
+
+.codex/
+
+# Packaging
+
+*.egg-info/
