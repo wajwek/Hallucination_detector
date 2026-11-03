@@ -1,5 +1,0 @@
-﻿question,context,answer,ground_truth,label
-"What is the capital of France?","Paris is the capital and most populous city of France.","The capital of France is Paris.","Paris",0
-"What is the capital of Germany?","Berlin is the capital of Germany.","The capital of Germany is Munich.","Berlin",1
-"Who wrote Hamlet?","Hamlet is a tragedy written by William Shakespeare.","Hamlet was written by William Shakespeare.","William Shakespeare",0
-"What is 2+2?","Basic arithmetic facts: 2+2=4.","2+2 equals 5.","4",1
