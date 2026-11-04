@@ -147,6 +147,48 @@ The evaluation is descriptive over the available labeled data. It does not fit a
 
 Results depend on the encoder, text length, task and benchmark construction. HaluEval's generated hallucinations may carry stylistic artifacts, and separation on this benchmark would not establish general factuality detection. In particular, this project has not reproduced the paper's performance claims, evaluated transfer, or supplied confidence intervals. The most direct next experiment is to execute the QA evaluation and compare its metrics with the published reference under documented preprocessing.
 
+## TODOs
+
+The next steps focus on completing and assessing the HaluEval experiment before expanding its scope.
+
+- [ ] **Run the revised notebook in Colab.** Generate or validate the embeddings, execute SGI evaluation and save the actual metrics with the dataset revision and run configuration.
+- [ ] **Document the first measured results.** Add per-subset means, Cohen's d and AUROC to this README. Compare QA with the paper's QA reference and explain any preprocessing differences rather than assuming an exact replication.
+- [ ] **Inspect the score distributions.** Plot SGI by class, ROC curves and the relationship between question–context angular distance and detection performance. Check whether class separation changes as the question and context become farther apart.
+- [ ] **Add uncertainty estimates.** Compute bootstrap confidence intervals for AUROC and effect sizes, resampling source pairs together by `pair_id`.
+- [ ] **Evaluate binary decisions.** Create development and test splits grouped by `pair_id`, choose a threshold on development data using a stated objective, then report test precision, recall, F1, accuracy and the confusion matrix. Do not choose the threshold using test labels.
+- [ ] **Analyze failures.** Inspect false alarms and missed hallucinations, including plausible factual errors, unusually short responses and cases where evidence was truncated.
+- [ ] **Compare with simple baselines.** Evaluate response–context cosine similarity and response–context angular distance on the same rows to establish whether the SGI ratio adds useful information.
+- [ ] **Check robustness within HaluEval.** Compare encoders and token limits, report QA, dialogue and summarization separately, and keep test data out of model and parameter selection.
+- [ ] **Improve reproducibility and runtime.** Pin dependencies and model revisions for reported experiments, measure embedding time and memory use, and consider encoding repeated texts once. Add resumable batches if interrupted runs become a practical problem.
+
+## Encountered problems
+
+### Slow embedding generation on CPU
+
+Local CPU execution has been too slow for practical embedding generation in this project. The selected data contains 60,000 response rows, and the current pipeline encodes a question, context and response for every row. This makes the embedding stage substantially more demanding than calculating SGI from cached vectors.
+
+For this reason, I use **Google Colab to run embedding inference on a cloud GPU**, with Google Drive storing the generated artifacts for reuse. The notebook still supports CPU execution, but the GPU workflow is the practical choice for the full run. No controlled CPU-versus-GPU timing benchmark has been recorded yet.
+
+### Preparation completed before detection evaluation
+
+The original notebook recorded data preparation and an embedding cache hit, but no SGI scores or detection metrics. This leaves a gap between a prepared pipeline and evidence that the hypothesis works. The revised notebook adds scoring and evaluation; those cells still need to be executed before claiming a reproduction result.
+
+### External cache and reproducibility
+
+The historical embeddings are stored on Google Drive rather than in this repository, so the saved cache-hit message alone does not verify their contents. Legacy cache reuse checked row counts without establishing that the input texts and settings matched. The revised cache records input content and configuration, which may require an expensive initial recomputation. Dependency versions are recorded, but package and model revisions still need to be pinned for reported experiments.
+
+### Incompatible inputs across HaluEval subsets
+
+SGI needs a question, context and response. General queries have no supplied context and cannot be evaluated with this formula. Summarization has no natural question, so the notebook uses a fixed instruction. These differences prevent treating every HaluEval subset as the same geometric task.
+
+### Truncation and limits of the signal
+
+The 384-token limit can remove evidence from long contexts. Separately, semantically plausible false claims may remain close to the context even when their details are wrong. Both are limitations to investigate through error analysis; their impact has not yet been measured in this project.
+
+### From a score to a decision
+
+The current evaluation measures ranking and class separation. It does not yet establish a decision threshold or test precision and recall. The paired responses also require grouped splits to avoid evaluating on another response from the same source item used during development. SGI = 1 should therefore not be presented as an empirically validated cutoff.
+
 ## References
 
 - Javier Marín. [*A Geometric Taxonomy of Hallucinations in LLMs*](https://arxiv.org/html/2602.13224v1). arXiv:2602.13224v1, 2026.
