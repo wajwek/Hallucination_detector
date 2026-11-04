@@ -42,7 +42,7 @@ Only rows with nonempty question, context and response and a binary label enter 
 6. Cache embeddings with input/configuration checks.
 7. Compute angular distances and SGI, then export per-subset and pooled descriptive metrics.
 
-The encoder uses a **384-token limit** and **batch size 32**. Long texts are truncated, which can remove relevant evidence. No generator is queried, embedding model fine-tuned or classifier trained. The new evaluation reports mean SGI by class, Cohen's d and AUROC. Since lower SGI is expected for hallucinations, AUROC uses **−SGI**, with label 1 as the positive class. Near-zero response–context angles are excluded from ratio evaluation and counted explicitly.
+The encoder uses a **384-token limit** and **batch size 32**. Long texts are truncated, which can remove relevant evidence. No generator is queried, embedding model fine-tuned or classifier trained. The new evaluation reports mean SGI by class, Cohen's d and AUROC. Since lower SGI is expected for hallucinations, AUROC uses **−SGI**, with label 1 as the positive class. Near-zero response-context angles are excluded from ratio evaluation and counted explicitly.
 
 ## Results recorded so far
 
@@ -114,7 +114,7 @@ The notebook treats **hallucination as the positive class** (`label=1`). Its fin
 | `cohens_d` | Difference between the grounded and hallucinated mean SGI, divided by their pooled sample standard deviation. Positive values support the hypothesis; negative values indicate the opposite direction. Conventional absolute magnitudes of 0.2, 0.5 and 0.8 are often called small, medium and large, but are only rough guides. This is an effect size, not an accuracy percentage. |
 | `auroc` | Area under the receiver operating characteristic curve, using `-SGI` as the hallucination score. It measures how often a randomly selected hallucinated response receives a higher hallucination score than a randomly selected grounded response, with ties counting as half. A value of 0.5 indicates chance-level ranking, 1.0 perfect ranking, and below 0.5 ranking opposite to the assumed direction. An AUROC of 0.8 does **not** mean 80% of binary decisions are correct. |
 | `rows` | Number of complete labeled triplets supplied to evaluation for the subset. |
-| `excluded_rows` | Rows excluded from SGI metrics because the response–context angle is at most `1e-6` radians, making the ratio unstable. |
+| `excluded_rows` | Rows excluded from SGI metrics because the response-context angle is at most `1e-6` radians, making the ratio unstable. |
 | `grounded_rows`, `hallucinated_rows` | Number of usable responses in each class after those exclusions. |
 
 Class means, Cohen's d and AUROC use only rows with a valid SGI. Metrics without enough usable observations or class variation are reported as missing (`NaN`). Compare the QA row with the paper's QA results; the `all` row pools different tasks and can hide differences between them.
@@ -153,11 +153,11 @@ The next steps focus on completing and assessing the HaluEval experiment before 
 
 - [ ] **Run the revised notebook in Colab.** Generate or validate the embeddings, execute SGI evaluation and save the actual metrics with the dataset revision and run configuration.
 - [ ] **Document the first measured results.** Add per-subset means, Cohen's d and AUROC to this README. Compare QA with the paper's QA reference and explain any preprocessing differences rather than assuming an exact replication.
-- [ ] **Inspect the score distributions.** Plot SGI by class, ROC curves and the relationship between question–context angular distance and detection performance. Check whether class separation changes as the question and context become farther apart.
+- [ ] **Inspect the score distributions.** Plot SGI by class, ROC curves and the relationship between question-context angular distance and detection performance. Check whether class separation changes as the question and context become farther apart.
 - [ ] **Add uncertainty estimates.** Compute bootstrap confidence intervals for AUROC and effect sizes, resampling source pairs together by `pair_id`.
 - [ ] **Evaluate binary decisions.** Create development and test splits grouped by `pair_id`, choose a threshold on development data using a stated objective, then report test precision, recall, F1, accuracy and the confusion matrix. Do not choose the threshold using test labels.
 - [ ] **Analyze failures.** Inspect false alarms and missed hallucinations, including plausible factual errors, unusually short responses and cases where evidence was truncated.
-- [ ] **Compare with simple baselines.** Evaluate response–context cosine similarity and response–context angular distance on the same rows to establish whether the SGI ratio adds useful information.
+- [ ] **Compare with simple baselines.** Evaluate response-context cosine similarity and response-context angular distance on the same rows to establish whether the SGI ratio adds useful information.
 - [ ] **Check robustness within HaluEval.** Compare encoders and token limits, report QA, dialogue and summarization separately, and keep test data out of model and parameter selection.
 - [ ] **Improve reproducibility and runtime.** Pin dependencies and model revisions for reported experiments, measure embedding time and memory use, and consider encoding repeated texts once. Add resumable batches if interrupted runs become a practical problem.
 
@@ -168,14 +168,6 @@ The next steps focus on completing and assessing the HaluEval experiment before 
 Local CPU execution has been too slow for practical embedding generation in this project. The selected data contains 60,000 response rows, and the current pipeline encodes a question, context and response for every row. This makes the embedding stage substantially more demanding than calculating SGI from cached vectors.
 
 For this reason, I use **Google Colab to run embedding inference on a cloud GPU**, with Google Drive storing the generated artifacts for reuse. The notebook still supports CPU execution, but the GPU workflow is the practical choice for the full run. No controlled CPU-versus-GPU timing benchmark has been recorded yet.
-
-### Preparation completed before detection evaluation
-
-The original notebook recorded data preparation and an embedding cache hit, but no SGI scores or detection metrics. This leaves a gap between a prepared pipeline and evidence that the hypothesis works. The revised notebook adds scoring and evaluation; those cells still need to be executed before claiming a reproduction result.
-
-### External cache and reproducibility
-
-The historical embeddings are stored on Google Drive rather than in this repository, so the saved cache-hit message alone does not verify their contents. Legacy cache reuse checked row counts without establishing that the input texts and settings matched. The revised cache records input content and configuration, which may require an expensive initial recomputation. Dependency versions are recorded, but package and model revisions still need to be pinned for reported experiments.
 
 ### Incompatible inputs across HaluEval subsets
 
