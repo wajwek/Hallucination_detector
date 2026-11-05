@@ -1,4 +1,4 @@
-"""Run saved-score SGI analysis locally without a GPU or Google Colab."""
+"""Evaluate SGI decision rules and generate the experiment analysis report."""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import roc_auc_score
 
 TASKS = ["qa", "dialogue", "summarization", "all"]
 
@@ -121,6 +122,164 @@ def midpoint_markdown(estimates, evaluated):
                      f"{e['midpoint_threshold']:.6f} | {percent(fixed)} | {rule} | {percent(oriented)} |")
     return "\n".join(lines)
 
+def summarize_scores(frame):
+    scores = pd.to_numeric(frame["sgi"], errors="coerce")
+    labels = pd.to_numeric(frame["label"], errors="coerce")
+    valid = np.isfinite(scores) & labels.isin([0, 1])
+    clean = frame.loc[valid, ["subset"]].copy()
+    clean["sgi"] = scores.loc[valid]
+    clean["label"] = labels.loc[valid].astype(int)
+    rows = []
+    for task in TASKS:
+        original = frame if task == "all" else frame.loc[frame.subset == task]
+        group = clean if task == "all" else clean.loc[clean.subset == task]
+        grounded = group.loc[group.label == 0, "sgi"].to_numpy()
+        hallucinated = group.loc[group.label == 1, "sgi"].to_numpy()
+        d = np.nan
+        if len(grounded) > 1 and len(hallucinated) > 1:
+            variance = ((len(grounded)-1)*grounded.var(ddof=1)
+                        + (len(hallucinated)-1)*hallucinated.var(ddof=1)) / (len(group)-2)
+            if variance > 0:
+                d = (grounded.mean()-hallucinated.mean()) / np.sqrt(variance)
+        rows.append(dict(subset=task, rows=len(original), excluded_rows=len(original)-len(group),
+                         mean_sgi_grounded=grounded.mean() if len(grounded) else np.nan,
+                         mean_sgi_hallucinated=hallucinated.mean() if len(hallucinated) else np.nan,
+                         cohens_d=d,
+                         auroc=roc_auc_score(group.label, -group.sgi) if group.label.nunique() == 2 else np.nan))
+    return pd.DataFrame(rows)
+
+
+def analysis_report(summary, grid, estimates, midpoint_results, start, stop, step):
+    baseline_lines = ["| Task | Response rows | Mean SGI: grounded | Mean SGI: hallucinated | Cohen's d | AUROC (-SGI) |",
+                      "| --- | ---: | ---: | ---: | ---: | ---: |"]
+    for row in summary.itertuples():
+        baseline_lines.append(f"| {row.subset} | {row.rows:,} | {row.mean_sgi_grounded:.6f} | "
+                              f"{row.mean_sgi_hallucinated:.6f} | {row.cohens_d:.6f} | {row.auroc:.6f} |")
+    comparison_lines = ["| Task | Accuracy at 1.00 | Highest accuracy in this grid | Grid threshold | Midpoint | Accuracy at midpoint (below rule) |",
+                        "| --- | ---: | ---: | ---: | ---: | ---: |"]
+    for task in TASKS:
+        task_grid = grid.loc[grid.subset == task]
+        reference = task_grid.loc[np.isclose(task_grid.threshold, 1.0)].iloc[0]
+        available = task_grid.dropna(subset=["accuracy"])
+        best = available.loc[available.accuracy.idxmax()] if len(available) else reference
+        mid = midpoint_results.loc[(midpoint_results.subset == task)
+                                   & (midpoint_results.policy == "fixed_below")].iloc[0]
+        comparison_lines.append(f"| {task} | {100*reference.accuracy:.2f}% | {100*best.accuracy:.2f}% | "
+                                f"{best.threshold:.2f} | {mid.threshold:.6f} | {100*mid.get('accuracy', np.nan):.2f}% |")
+    observations = {}
+    for task in TASKS:
+        current = grid.loc[grid.subset == task]
+        reference = current.loc[np.isclose(current.threshold, 1.0)].iloc[0]
+        available = current.dropna(subset=["accuracy"])
+        best = available.loc[available.accuracy.idxmax()] if len(available) else reference
+        fixed = midpoint_results.loc[(midpoint_results.subset == task)
+                                     & (midpoint_results.policy == "fixed_below")].iloc[0]
+        oriented = midpoint_results.loc[(midpoint_results.subset == task)
+                                        & (midpoint_results.policy == "class_mean_direction")].iloc[0]
+        if task == "qa":
+            observations[task] = (
+                f"In this grid, accuracy reaches {100*best.accuracy:.3f}% at {best.threshold:.2f}, "
+                f"compared with {100*reference.accuracy:.3f}% at 1.00. "
+                f"The midpoint gives {100*fixed.get('accuracy', np.nan):.2f}%. "
+                "This compares a geometric boundary with empirical cutoffs; it does not establish an independently optimal threshold.")
+        elif task == "dialogue":
+            denominator = fixed.get("fp", 0) + fixed.get("tn", 0)
+            false_alarm = fixed.get("fp", 0) / denominator if denominator else np.nan
+            observations[task] = (
+                f"The highest grid accuracy is {100*best.accuracy:.3f}% at {best.threshold:.2f}. "
+                f"The midpoint gives {100*fixed.get('accuracy', np.nan):.2f}%, with recall "
+                f"{100*fixed.get('recall', np.nan):.2f}% and false positive rate {100*false_alarm:.2f}%. "
+                "A high recall with frequent false alarms does not establish a useful detector. "
+                "Inspect dispersion and denominator angles before relying on class means.")
+        elif task == "summarization":
+            reference_note = (
+                "At threshold 1.00, all responses are accepted as grounded. "
+                if reference.predicted_hallucination_rate == 0 else "At threshold 1.00, some responses are flagged. ")
+            observations[task] = (
+                reference_note + f"Reference accuracy is {100*reference.accuracy:.2f}% and hallucination recall "
+                f"is {100*reference.recall:.2f}%. The midpoint is {fixed.threshold:.6f}. "
+                f"It yields {100*fixed.get('accuracy', np.nan):.2f}% under the below rule and "
+                f"{100*oriented.get('accuracy', np.nan):.2f}% under the mean-based diagnostic. "
+                "This does not establish a cause for the task difference or transfer to new examples. "
+                "The constant instruction is an exploratory adaptation, not a question supplied by HaluEval.")
+    baseline_table = "\n".join(baseline_lines)
+    comparison_table = "\n".join(comparison_lines)
+    grid_table = accuracy_markdown(grid)
+    midpoint_table = midpoint_markdown(estimates, midpoint_results)
+    artifact_dir = f"results/HaluEval/thresholds_{start:.2f}_{stop:.2f}"
+    return f"""# Experiment analysis
+
+## Research question
+
+Can the Semantic Grounding Index distinguish reference and hallucinated responses by their position relative to a question and its supporting context? The experiments test the same angular ratio across HaluEval QA, dialogue and summarization, then examine how decision thresholds affect classification.
+
+The project follows the geometric idea in [Marín's paper](https://arxiv.org/html/2602.13224v1), but does not fully replicate its protocol. QA is the published SGI comparison task. Dialogue uses conversation history as q; summarization uses an instruction added by this project. The separate Directional Grounding Index is not implemented.
+
+## Experiment 1: establish the grounding signal
+
+The recorded embedding run used all-mpnet-base-v2, masked mean pooling, L2 normalization and a 384-token limit. Each task contributes 10,000 source pairs, each containing a reference response and a hallucinated response. Labels are 0 for reference and 1 for hallucinated. General queries are excluded because they lack context.
+
+The table is recomputed from saved per-response scores. AUROC uses -SGI, so the assumed direction is lower SGI for hallucinations.
+
+{baseline_table}
+
+For QA, the paper reports AUROC 0.776 and Cohen's d 0.92 for the same encoder name. The recorded baseline in this repository supports the direction of the effect but does not match those values. Differences in sample selection, long-context handling and denominator stabilization remain candidates to test. No cause has been established, and no confidence interval for the discrepancy is available.
+
+## Experiment 2: compare fixed cutoffs
+
+Predict hallucination when SGI < threshold; equality is grounded. The current grid spans {start:.2f} to {stop:.2f} in steps of {step:.2f}. The earlier 1.00-2.00 sweep is retained in the parent results folder. Accuracy changes use 1.00 as the reference.
+
+{grid_table}
+
+These are descriptive measurements on the available labeled examples. The highest accuracy in the grid is an observation on these data, not a validated threshold. Where several thresholds tie, the comparison below lists the first. Changing the cutoff does not change AUROC for a fixed score direction.
+
+## Experiment 3: test a threshold derived from class means
+
+For each task, midpoint = (mean grounded SGI + mean hallucinated SGI) / 2. It is evaluated at full precision, even outside the fixed grid. The pooled estimate is a separate summary and does not replace task-specific thresholds.
+
+{midpoint_table}
+
+The fixed-below policy preserves the original rule. The mean-based diagnostic uses SGI > midpoint when the hallucinated mean is higher; otherwise it is identical to the below rule. Equality is grounded in both policies. Direction changes are explicit and do not alter the baseline AUROC reported above.
+
+A midpoint is a heuristic, not an optimum. It ignores distribution shape, extreme ratios, class priors and error costs. Both the midpoint and the diagnostic direction are estimated on the same labeled data used for evaluation. Any improvement needs confirmation on separate test pairs.
+
+## Comparison of the tested approaches
+
+{comparison_table}
+
+## Findings from the recorded HaluEval experiment
+
+**QA:** {observations['qa']}
+
+**Dialogue:** {observations['dialogue']}
+
+**Summarization:** {observations['summarization']}
+
+**Pooled scores:** Combining tasks hides their different score distributions. Report task-specific results before drawing conclusions from the pooled value. The individual source pairs are also dependent observations: both responses must remain together in any split or bootstrap.
+
+The tables and decision comparisons above are computed from the supplied scores. The encoder settings and literature comparison refer to the recorded HaluEval experiment; document any change to that provenance when evaluating other inputs.
+
+## Next experiments
+
+- [x] Establish the per-task SGI baseline and compare QA with the paper.
+- [x] Evaluate both threshold grids and verify the overlapping results.
+- [x] Evaluate class-mean midpoint thresholds with explicit directions.
+- [x] Compare accuracy, recall and false alarms for the tested approaches.
+- [ ] Inspect SGI quantiles, dispersion and small response-context angles.
+- [ ] Test whether context truncation changes the QA result.
+- [ ] Compare SGI against response-context similarity on the same pairs.
+- [ ] Test alternative summarization instructions using development pairs.
+- [ ] Select thresholds and directions on development pairs, then evaluate once on separate test pairs.
+- [ ] Add bootstrap confidence intervals grouped by pair_id.
+
+## Evidence and reproducibility
+
+[Baseline exports](results/HaluEval/sgi_metrics.csv), [embedding configuration](results/HaluEval/run_config.json) and [threshold configuration]({artifact_dir}/threshold_sweep_config.json) record the data revision, preprocessing and source-score hash. [Grid metrics]({artifact_dir}/threshold_metrics.csv) and [midpoint metrics]({artifact_dir}/midpoint_metrics.csv) retain full-precision values and confusion counts. Package versions are recorded for reproducibility. The embedding model revision was not pinned in the initial run.
+
+Accuracy values in CSV are fractions; Markdown tables show percentages. Nonfinite scores and nonbinary labels are excluded and counted. Undefined ratios are NaN. No embeddings were recomputed for threshold evaluation. This file is the single narrative report; result directories contain numerical exports and run metadata.
+"""
+
+
 def run_analysis(project_root=None, scores_path=None, threshold_start=0.70,
                  threshold_stop=1.40, threshold_step=0.05, update_report=True):
     """Evaluate saved scores and write CSVs plus the repository analysis report."""
@@ -141,7 +300,7 @@ def run_analysis(project_root=None, scores_path=None, threshold_start=0.70,
         raise ValueError("The grid must include reference threshold 1.00.")
     OUTPUT_DIR = RESULTS_DIR / f"thresholds_{THRESHOLD_START:.2f}_{THRESHOLD_STOP:.2f}"
     if not SCORES_PATH.exists():
-        raise FileNotFoundError(f"No saved scores at {SCORES_PATH}. Mount Drive and run SGI scoring first.")
+        raise FileNotFoundError("Saved SGI scores are missing. Generate sgi_scores.parquet with the embedding notebook or provide --scores PATH.")
     score_frame = pd.read_parquet(SCORES_PATH).reset_index(drop=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     threshold_table = threshold_metrics(score_frame, THRESHOLDS)
@@ -174,58 +333,18 @@ def run_analysis(project_root=None, scores_path=None, threshold_start=0.70,
     )
     (OUTPUT_DIR / "threshold_sweep_config.json").write_text(json.dumps(sweep_config, indent=2))
 
-    report = f"""# Experiment analysis
-
-## Scope
-
-SGI is evaluated on HaluEval QA, dialogue and summarization. This is not a full replication of the paper. Dialogue uses the conversation history as q; summarization uses a fixed instruction added by this project.
-
-## Approach 1: fixed threshold grid
-
-Predict hallucination when SGI < threshold; equality is grounded. The current grid is {THRESHOLD_START:.2f} to {THRESHOLD_STOP:.2f}, inclusive, in steps of {THRESHOLD_STEP:.2f}. Accuracy changes are measured against threshold {REFERENCE_THRESHOLD:.2f} in percentage points. These results describe the saved labeled scores, not an independent test set.
-
-{accuracy_markdown(threshold_table)}
-
-## Approach 2: midpoint of class means
-
-For each task, threshold = (mean grounded SGI + mean hallucinated SGI) / 2. The pooled row is an additional summary, not a replacement for task-specific thresholds. Midpoints are evaluated at full precision and are not clipped to the grid. Means, thresholds and metrics use only finite SGI values with binary labels.
-
-{midpoint_markdown(midpoint_estimates, midpoint_results)}
-
-The fixed-below column preserves the original SGI rule. The mean-based diagnostic flags scores above the midpoint when the hallucinated mean exceeds the grounded mean. Equality is grounded in both policies. This second policy changes the decision direction, not the score or the baseline AUROC. When the direction is below, the policies are identical.
-
-The midpoint is a heuristic, not an optimal threshold. It ignores dispersion, extreme ratios, class priors and error costs. The means, threshold and diagnostic direction were estimated on the same data used for evaluation, so these are exploratory results. Held-out performance remains unknown. Do not report the highest grid accuracy as validated test accuracy.
-
-## Interpretation and next checks
-
-The original baseline AUROC was 0.7399 for QA, 0.4745 for dialogue and 0.4084 for summarization using -SGI. The new cutoffs do not change that ranking. If the summarization midpoint lies outside the grid, it is still evaluated separately. The test asks whether a different cutoff helps, and whether the reversed mean order warrants a separate direction check. It does not establish why the ranking is reversed.
-
-- [x] Implement and execute the 0.70-1.40 grid on saved scores.
-- [x] Compute class means, midpoint thresholds and decision metrics.
-- [ ] Review whether the midpoint improves accuracy, recall and false alarm rate against threshold 1.00.
-- [ ] Inspect dispersion and extreme ratios, especially for dialogue.
-- [ ] Select a threshold and direction on development pairs and evaluate once on separate test pairs.
-- [ ] Add bootstrap intervals grouped by pair_id.
-
-## Run evidence
-
-This report was generated locally from saved per-response scores. threshold_sweep_config.json records their SHA-256 and the evaluation settings. threshold_metrics.csv contains the grid metrics; midpoint_estimates.csv and midpoint_metrics.csv contain the heuristic estimates and decisions. Accuracy values in CSV are fractions; this report shows percentages. Zero-denominator ratios are NaN. Invalid rows are excluded and counted. The completed 1.00-2.00 exports remain in the parent results folder.
-"""
-    report = report.strip() + "\n"
-    (OUTPUT_DIR / "ANALYSIS.md").write_text(report)
+    summary = summarize_scores(score_frame)
+    summary.to_csv(OUTPUT_DIR / "sgi_summary.csv", index=False)
+    report = analysis_report(summary, threshold_table, midpoint_estimates, midpoint_results,
+                             THRESHOLD_START, THRESHOLD_STOP, THRESHOLD_STEP)
     environment = {name: importlib.metadata.version(name) for name in
                    ["numpy", "pandas", "pyarrow", "scikit-learn"]}
     (OUTPUT_DIR / "analysis_environment.json").write_text(json.dumps(environment, indent=2) + "\n")
     if update_report:
-        report_path = PROJECT_ROOT / "ANALYSIS.md"
-        backup = OUTPUT_DIR / "previous_ANALYSIS.md"
-        if report_path.exists() and not backup.exists():
-            backup.write_text(report_path.read_text())
-        report_path.write_text(report)
+        (PROJECT_ROOT / "ANALYSIS.md").write_text(report)
     return dict(accuracy=comparison, accuracy_change_pp=accuracy_change,
                 midpoint_estimates=midpoint_estimates, midpoint_metrics=midpoint_results,
-                threshold_metrics=threshold_table, report=report, output_dir=OUTPUT_DIR)
-
+                threshold_metrics=threshold_table, summary=summary, report=report, output_dir=OUTPUT_DIR)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -242,8 +361,7 @@ def main():
     print(results["accuracy"].to_string())
     print("\nClass-mean midpoint decisions:")
     print(results["midpoint_metrics"][["subset", "policy", "threshold", "accuracy", "recall", "precision"]].to_string(index=False))
-    print("\nSaved results to:", results["output_dir"])
-
+    print("\nEvaluation complete. CSV exports are in results/HaluEval; interpretation is in ANALYSIS.md.")
 
 if __name__ == "__main__":
     main()

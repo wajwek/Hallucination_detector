@@ -1,1 +1,1 @@
-"""Local SGI analysis tools."""
+"""SGI evaluation and experiment reporting."""

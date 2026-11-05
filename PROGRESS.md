@@ -1,86 +1,85 @@
-# Project progress
+# Research progress
 
-Last updated: November 5, 2026.
+Updated: November 5, 2026.
 
-This file tracks established findings and open investigations. Mark an item complete only when supporting evidence is available. Keep hypotheses separate from verified explanations. The README describes the project; this checklist tracks the investigation.
+This checklist records completed experiments and open questions. A checked item means there is a result or an inspected artifact, not that a hypothesis has been proved. Read [ANALYSIS.md](ANALYSIS.md) for measurements and conclusions.
 
-## Established findings
+## Milestone 1: define the experiment
 
-- [x] Limit the project to HaluEval. Other dataset pipelines have been removed.
-- [x] Prepare QA, dialogue and summarization as question-context-response triplets. Dialogue uses conversation history as the question; only summarization uses a fixed synthetic instruction.
-- [x] Exclude general queries from SGI evaluation because they have no supplied context.
-- [x] Complete the first Colab evaluation on 60,000 response rows, representing 30,000 source pairs. Each task has 10,000 reference and 10,000 hallucinated responses.
-- [x] Save full-precision metrics, run configuration and dependency versions under `results/HaluEval/`.
-- [x] Establish useful QA ranking in the expected direction: AUROC 0.73986109, Cohen's d 0.80575347.
-- [x] Record weak dialogue ranking in the assumed direction: AUROC 0.47446514. Its significance relative to chance has not been assessed.
-- [x] Record reversed summarization ranking under the same score convention: AUROC 0.40841045. Its cause is not yet established.
-- [x] Record pooled AUROC 0.53972089 and zero exclusions under the current denominator tolerance.
-- [x] Document the numerical QA comparison with the paper in README: AUROC 0.7399 versus 0.776, Cohen's d 0.8058 versus 0.92. This comparison does not establish matched protocols or a statistically significant difference.
+- [x] Limit the current benchmark scope to HaluEval.
+- [x] Define QA triplets from question, knowledge and each candidate answer.
+- [x] Define dialogue triplets using conversation history and supplied knowledge.
+- [x] Define an exploratory summarization variant with a fixed instruction as q.
+- [x] Exclude general queries from SGI evaluation because they lack context.
+- [x] Preserve reference/hallucinated pairs and document label direction.
+- [x] Document actual q, c, r examples in README.md.
 
-Evidence: [metrics](results/HaluEval/sgi_metrics.csv), [run configuration](results/HaluEval/run_config.json), [environment](results/HaluEval/environment.json). These are exports from the November 4 Colab run. The local notebook now contains saved Colab execution outputs; individual score and embedding files remain on Google Drive. Local checks now reproduce the recorded per-task AUROC and class means from the saved individual scores. Embeddings were not recomputed.
+## Milestone 2: establish the SGI baseline
 
-## Next investigation: explain the QA difference
+- [x] Prepare 60,000 response rows from 30,000 source pairs.
+- [x] Generate embeddings with all-mpnet-base-v2, masked mean pooling and L2 normalization.
+- [x] Record dataset revision, token limit, pooling, label convention and dependency versions.
+- [x] Compute angular distances, SGI, class means, Cohen's d and AUROC.
+- [x] Verify the saved per-task AUROC and means against the individual scores.
+- [x] Report task-specific results rather than relying on the pooled value.
 
-- [x] Complete the first paper-to-notebook protocol audit, including the original SGI paper cited by the target article. See the protocol comparison in README.md.
-- [ ] Locate a verifiable historical experiment script or obtain missing sample and long-context details. No such script was identified in the checked sources; the exact protocol remains unresolved.
-- [ ] Resolve whether the paper's sample count refers to source items or individual responses, and establish how each class was selected.
-- [x] Compare the documented model, pooling, normalization, token limits, text handling and denominator rules with the notebook. Record matches, differences and missing details in the audit.
-- [ ] Test which confirmed differences change the metrics. No causal explanation has been established.
-- [ ] Read the existing `sgi_scores.parquet` and inspect distributions without recomputing embeddings.
-- [ ] Compute class-wise medians, standard deviations, quantiles and maxima for SGI and response-context angles.
-- [ ] Plot SGI distributions and ROC curves separately for each task.
-- [ ] Investigate dialogue's large mean gap alongside its tiny Cohen's d. Check extreme ratios and small denominators above the exclusion cutoff.
-- [ ] Inspect representative response pairs and whether truncation removes evidence.
-- [ ] Add confidence intervals using bootstrap resampling grouped by `pair_id`.
-- [ ] Run controlled comparisons for verified protocol differences, changing one setting at a time and preserving the first run as a baseline.
-- [ ] Write a supported explanation of the QA discrepancy, distinguishing measured causes from unresolved hypotheses.
+Observed AUROC using -SGI: QA 0.73986109, dialogue 0.47446514 and summarization 0.40841045. The pooled value is 0.53972089. Zero rows were excluded under the recorded angle tolerance. These are descriptive findings from the recorded experiment.
 
-## Extension: dialogue and summarization
+## Milestone 3: compare with the publication
 
-- [x] Verify scope in the selected v1: the SGI result table covers QA; reported dialogue results use the separate Directional Grounding Index. Our dialogue and summarization SGI runs extend that reported comparison.
-- [x] Inspect and document one actual q, c, r pair per task from the run's dataset revision. See examples in README.md. These illustrative records do not replace distribution-level error analysis.
-- [ ] Explain dialogue results using score distributions and inspected examples.
-- [ ] Test whether changing the synthetic summarization instruction changes the ranking, with an explicit development/evaluation protocol.
-- [ ] Separate effects of the question input, truncation and response characteristics before assigning a cause to the reversed summarization result.
-- [ ] Write task-specific conclusions and limitations, avoiding general factuality claims.
+- [x] Audit the selected paper and its earlier SGI implementation description.
+- [x] Compare QA with the reported all-mpnet-base-v2 result: AUROC 0.776 and Cohen's d 0.92.
+- [x] Record matching geometry and differences in sampling, context handling and denominator stabilization.
+- [x] Verify that the selected paper's dialogue comparison uses the separate directional method.
+- [ ] Resolve the exact source-row selection and meaning of the reported sample counts.
+- [ ] Locate a verifiable historical script or obtain missing preprocessing details.
+- [ ] Test confirmed protocol differences one at a time.
+- [ ] Explain the QA gap using measured effects and uncertainty estimates.
 
-## Threshold experiments
+The comparison supports the direction of the QA effect. It does not establish an exact replication or identify the cause of the numerical gap.
 
-- [x] Complete and verify the historical 1.00-2.00 sweep with 21 thresholds and 84 task-threshold rows.
-- [x] Implement a new 0.70-1.40 sweep with 15 thresholds, step 0.05, preserving 1.00 as the accuracy reference.
-- [x] Calculate class-mean midpoint estimates from the existing baseline means and save their provenance in ANALYSIS.md.
-- [x] Implement separate midpoint decision metrics for the fixed-below rule and the diagnostic direction inferred from class means.
-- [x] Keep new exports in a separate directory so the completed baseline remains available.
-- [x] Check midpoint arithmetic, equality boundaries, both directions, missing classes and report exports on controlled fixtures. Real-data execution remains pending.
-- [x] Run the revised grid and midpoint analysis locally in WSL, preserving the original Colab exports.
-- [x] Measure midpoint accuracy and recall on the saved scores. QA midpoint accuracy is 0.6508; summarization is 0.4334 with the original direction and 0.5666 with the diagnostic reversed direction. These are same-data descriptive results.
-- [ ] Investigate midpoint sensitivity to skew and extreme SGI values before selecting a threshold.
+## Milestone 4: evaluate decision rules
 
-## Later evaluation
+- [x] Complete the historical 1.00-2.00 threshold sweep, step 0.05.
+- [x] Complete the 0.70-1.40 sweep, step 0.05, using 1.00 as the accuracy reference.
+- [x] Verify confusion counts, derived metrics and overlapping historical results.
+- [x] Estimate a midpoint from the two class means for each task.
+- [x] Evaluate midpoints at full precision, including values outside the grid.
+- [x] Keep the original below-threshold rule separate from the mean-based direction diagnostic.
+- [x] Compare accuracy, precision, recall and false alarms for the tested approaches.
+- [x] Consolidate numerical interpretation in ANALYSIS.md and retain CSV evidence.
 
-- [ ] Compare SGI with response-context similarity baselines on the same rows.
-- [ ] Select a binary threshold on development data and report precision, recall, F1, accuracy and the confusion matrix on a separate test set, grouping by `pair_id`.
-- [ ] Pin model and package revisions for subsequent reported runs.
+Within the tested grid, QA accuracy reaches 70.565% at 0.85. Its midpoint gives 65.08%. The summarization midpoint gives 43.34% with the original direction and 56.66% with the diagnostic reversed direction. These values are not independent test estimates.
 
-## Working notes
+## Next: explain task differences
 
-- SGI measures relative semantic proximity, not factual truth. An SGI above 1 is not a validated truth decision.
-- AUROC uses `-SGI` with hallucination as the positive label. AUROC 0.74 is not 74% classification accuracy.
-- A fixed synthetic question is currently used only for summarization. Its role in the observed result is a hypothesis to test.
-- No confidence intervals or validated binary threshold are available yet.
-- Local CPU embedding generation was impractically slow for this workflow, so embeddings are computed on a cloud GPU in Colab. No controlled timing comparison has been recorded.
+- [ ] Compute class-wise medians, standard deviations, quantiles and extreme SGI values.
+- [ ] Inspect small response-context angles and dialogue's large score dispersion.
+- [ ] Plot per-task score distributions and ROC curves.
+- [ ] Inspect representative errors and responses affected by context truncation.
+- [ ] Test whether the synthetic summarization instruction changes the score direction.
+- [ ] Compare SGI with response-context cosine similarity on the same pairs.
+- [ ] Separate input-design effects from length, style and truncation effects before assigning causes.
 
-## Update log
+## Next: validate a detector
 
-- November 4, 2026: first Colab evaluation completed; summary exports added and README results updated.
-- November 5, 2026: created this investigation checklist. Protocol audit, distribution diagnostics and causal explanations remain open.
+- [ ] Define development and test splits grouped by pair_id.
+- [ ] Select threshold and direction on development pairs only.
+- [ ] Evaluate the selected rule once on separate test pairs.
+- [ ] Add paired bootstrap confidence intervals for ranking and decision metrics.
+- [ ] Check encoder and token-limit sensitivity without tuning on test data.
+- [ ] Pin encoder revisions for subsequent experiments.
 
-- November 5, 2026: completed the first protocol audit and documented actual task examples. Confirmed sample-selection, long-context handling and denominator-rule mismatches against the original SGI description. Exact source rows, historical code and causes of the metric gap remain unresolved.
+## Experiment log
 
-- November 5, 2026: added the descriptive threshold sweep (1.00 to 2.00, step 0.05), moved public examples into README.md and added tracked ANALYSIS.md. Code checks are separate from experiment execution; threshold results remain pending.
+| Date | Work completed | Evidence or consequence |
+| --- | --- | --- |
+| November 4, 2026 | First HaluEval SGI evaluation | Per-task baseline, configuration and score exports |
+| November 5, 2026 | Protocol audit and task examples | Documented replication limits and experimental input choices |
+| November 5, 2026 | Fixed threshold sweeps | Measured cutoff sensitivity and verified overlapping results |
+| November 5, 2026 | Class-mean midpoint experiment | Compared the original rule with an explicit direction diagnostic |
+| November 5, 2026 | Repeatable saved-score evaluation | Recomputed results without another embedding run; consolidated report and research checklist |
 
-- November 5, 2026: imported the executed notebook and threshold CSVs, recovered the missing sweep configuration from Drive, and replaced the pending analysis table with measured results. Checked all 84 metric rows against their confusion counts, pooled counts and accuracy changes. No independent recomputation from individual scores was performed.
+## Interpretation rules
 
-- November 5, 2026: changed the next grid to 0.70-1.40 in steps of 0.05 and added class-mean midpoint evaluation. Midpoint estimates are calculated from baseline exports; new decision metrics await Colab execution. The summarization midpoint is about 2.592044 and is evaluated separately from the grid, including an explicitly labeled reversed-direction diagnostic.
-
-- November 5, 2026: configured a local WSL virtual environment, Python kernel, analysis notebook and CLI. Downloaded the individual score file from connected Drive and verified its recorded SHA-256. Executed the local notebook with saved outputs. Reproduced the baseline per-task AUROC and means, verified the overlapping grid results and updated ANALYSIS.md directly from the local analysis. Added a local VS Code task for repeat runs without file copying.
+SGI measures relative semantic proximity, not factual truth. AUROC measures ranking rather than accuracy at a selected cutoff. A midpoint is a heuristic, and a reversed score direction must be declared explicitly. Neither a new cutoff nor the current benchmark results establish a general hallucination detector.

@@ -20,11 +20,11 @@ artifacts/
 .DS_Store
 Thumbs.db
 
-# Local datasets
+# Dataset caches
 datasets/
 
 
-# VS Code
+# Editor settings
 
 .vscode/
 
@@ -36,9 +36,9 @@ datasets/
 
 *.egg-info/
 
-# Windows download metadata
+# Download metadata
 *Zone.Identifier
 
-# Local per-response scores
+# Per-response score cache
 /results/HaluEval/sgi_scores.parquet
 /results/HaluEval/sgi_scores.parquet.part
