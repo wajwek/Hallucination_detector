@@ -1,8 +1,8 @@
 # Geometric Hallucination Detection with SGI
 
-An independent reproduction attempt exploring whether the **Semantic Grounding Index (SGI)** can distinguish grounded and hallucinated responses on **HaluEval** using sentence-embedding geometry.
+An experimental study of whether the **Semantic Grounding Index (SGI)** can distinguish grounded and hallucinated responses on **HaluEval** using sentence-embedding geometry.
 
-The project is inspired by Javier Marín's [*A Geometric Taxonomy of Hallucinations in LLMs* (2026)](https://arxiv.org/html/2602.13224v1), particularly its context-based SGI experiments. The goal is to investigate the proposed signal with a transparent notebook pipeline. This is an exploratory implementation, with reproduction of detection performance still pending.
+The project is based on Javier Marín's [*A Geometric Taxonomy of Hallucinations in LLMs* (2026)](https://arxiv.org/html/2602.13224v1), particularly its context-based SGI experiments. The goal is to investigate the proposed signal with a transparent notebook pipeline. The first Colab evaluation is complete: SGI shows useful separation on QA, while dialogue and summarization do not support the same scoring direction. It is not a full replication: we evaluate both responses for every QA source pair, use our own long-context and denominator handling, and extend SGI to dialogue and summarization. The synthetic summarization instruction is our addition. These choices may affect the results, but their effects have not yet been isolated.
 
 ## Research idea
 
@@ -32,6 +32,100 @@ The notebook downloads the [official HaluEval repository](https://github.com/RUC
 
 Only rows with nonempty question, context and response and a binary label enter the SGI pipeline. General queries are retained in the normalized export but excluded from SGI because they lack context. The synthetic summarization question makes its geometry different from natural QA; results should be reported separately.
 
+## Example inputs
+
+Each source item supplies two triplets with the same q and c: one reference response and one hallucinated response. The following records come from the first item of each task at the dataset revision used in the run. Whitespace and dash typography are normalized for display. The summarization context is only an excerpt; the notebook reads the complete document before applying its token limit. No individual SGI values are claimed for these examples.
+
+### QA: qa_0
+
+[Source file](https://github.com/RUCAIBox/HaluEval/blob/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/qa_data.json), first JSONL record.
+
+**q**
+
+```text
+Which magazine was started first Arthur's Magazine or First for Women?
+```
+
+**c**
+
+```text
+Arthur's Magazine (1844-1846) was an American literary periodical published in Philadelphia in the 19th century.First for Women is a woman's magazine published by Bauer Media Group in the USA.
+```
+
+**r, reference, label 0**
+
+```text
+Arthur's Magazine
+```
+
+**r, hallucinated, label 1**
+
+```text
+First for Women was started first.
+```
+
+The question asks about magazine chronology. The reference names Arthur's Magazine; the negative selects First for Women. The reference is much shorter than the negative in this example, so response form is worth checking across the dataset. This single example does not establish a dataset-wide length effect.
+
+### Dialogue: dialogue_0
+
+[Source file](https://github.com/RUCAIBox/HaluEval/blob/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/dialogue_data.json), first JSONL record.
+
+**q**
+
+```text
+[Human]: Do you like Iron Man [Assistant]: Sure do! Robert Downey Jr. is a favorite. [Human]: Yes i like him too did you know he also was in Zodiac a crime fiction film.
+```
+
+**c**
+
+```text
+Iron Man is starring Robert Downey Jr.Robert Downey Jr. starred in Zodiac (Crime Fiction Film)Zodiac (Crime Fiction Film) is starring Jake Gyllenhaal
+```
+
+**r, reference, label 0**
+
+```text
+I like crime fiction! Didn't know RDJ was in there. Jake Gyllenhaal starred as well.
+```
+
+**r, hallucinated, label 1**
+
+```text
+I'm not a fan of crime movies, but I did know that RDJ starred in Zodiac with Tom Hanks.
+```
+
+The history discusses Iron Man, Robert Downey Jr. and Zodiac. The knowledge also names Jake Gyllenhaal. The reference uses that name; the negative introduces Tom Hanks. The preference for crime movies is conversational content, not the factual error being illustrated.
+
+### Summarization: summarization_0
+
+[Source file](https://github.com/RUCAIBox/HaluEval/blob/b7253db3cdaa0ab2c382f92b26b390109174f77e/data/summarization_data.json), first JSONL record.
+
+**q**
+
+```text
+Summarize the document faithfully.
+```
+
+**c, opening excerpt only**
+
+```text
+Marseille, France (CNN)The French prosecutor leading an investigation into the crash of Germanwings Flight 9525 insisted Wednesday that he was [...]
+```
+
+**r, reference, label 0**
+
+```text
+Marseille prosecutor says "so far no videos were used in the crash investigation" despite media reports. Journalists at Bild and Paris Match are "very confident" the video clip is real, an editor says. Andreas Lubitz had informed his Lufthansa training school of an episode of severe depression, airline says.
+```
+
+**r, hallucinated, label 1**
+
+```text
+A video showing the final moments of Germanwings Flight 9525 has been recovered by investigators from the wreckage site. Marseille prosecutor Brice Robin urged anyone who might have more footage to turn it over immediately. Andreas Lubitz, the co-pilot accused of deliberately crashing the plane, had a history of severe depression and suicidal tendencies.
+```
+
+The full document reports a dispute over a claimed crash video: investigators had not confirmed it, while publications defended their report. The reference preserves that distinction. The negative presents recovery of a video by investigators as established. Both summaries still discuss the same event, people and topic. The q string was added by our notebook and is absent from the source record.
+
 ## Pipeline
 
 1. Set up Google Colab, mount Google Drive and initialize random seeds.
@@ -42,9 +136,11 @@ Only rows with nonempty question, context and response and a binary label enter 
 6. Cache embeddings with input/configuration checks.
 7. Compute angular distances and SGI, then export per-subset and pooled descriptive metrics.
 
-The encoder uses a **384-token limit** and **batch size 32**. Long texts are truncated, which can remove relevant evidence. No generator is queried, embedding model fine-tuned or classifier trained. The new evaluation reports mean SGI by class, Cohen's d and AUROC. Since lower SGI is expected for hallucinations, AUROC uses **−SGI**, with label 1 as the positive class. Near-zero response-context angles are excluded from ratio evaluation and counted explicitly.
+The encoder uses a **384-token limit** and **batch size 32**. Long texts are truncated, which can remove relevant evidence. No generator is queried, embedding model fine-tuned or classifier trained. The evaluation reports mean SGI by class, Cohen's d and AUROC. A separate threshold sweep computes accuracy, precision, recall, F1 and confusion counts for each task and the pooled data. Since lower SGI is expected for hallucinations, AUROC uses **−SGI**, with label 1 as the positive class. Near-zero response-context angles are excluded from ratio evaluation and counted explicitly.
 
-## Results recorded so far
+## Results
+
+### Historical data preparation
 
 The supplied notebook's original saved outputs establish the following preparation progress:
 
@@ -61,7 +157,28 @@ The 60,000 task-specific rows represent 30,000 source items, each expanded into 
 
 The original embedding cell reported a **cache hit** for all 60,000 complete triplets using `all-mpnet-base-v2`. The cache resides on Google Drive and is not included in this repository; its contents have not been independently verified here.
 
-**No SGI scores, AUROC, accuracy or effect sizes were recorded in the supplied notebook.** Consequently, no detection-performance result can currently be claimed for this implementation. The SGI calculation and evaluation cells were added during cleanup and have not yet been run on HaluEval. Historical execution outputs were cleared, and the evidence above was preserved as a written record.
+### First Colab evaluation: November 4, 2026
+
+The revised pipeline was executed on 60,000 complete HaluEval triplets. Each task contains 10,000 grounded and 10,000 hallucinated responses, with **zero rows excluded** by the near-zero denominator check.
+
+| Subset | Rows | Mean SGI: grounded | Mean SGI: hallucinated | Cohen's d | AUROC using -SGI |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| QA | 20,000 | 1.0662 | 0.8856 | 0.8058 | 0.7399 |
+| Dialogue | 20,000 | 2.1429 | 1.0571 | 0.0189 | 0.4745 |
+| Summarization | 20,000 | 2.5009 | 2.6832 | -0.3135 | 0.4084 |
+| All tasks | 60,000 | 1.9033 | 1.5420 | 0.0109 | 0.5397 |
+
+Full-precision exports are committed as [sgi_metrics.csv](results/HaluEval/sgi_metrics.csv), [run_config.json](results/HaluEval/run_config.json) and [environment.json](results/HaluEval/environment.json). They were read from the Colab output folder on Google Drive. The per-response score file and embedding arrays remain external; these summary metrics have not been independently recomputed from those arrays here. The local notebook has no saved execution outputs.
+
+The recorded run used `all-mpnet-base-v2`, a 384-token limit, batch size 32, manual mean pooling and L2 normalization. The HaluEval source revision is `b7253db3cdaa0ab2c382f92b26b390109174f77e`; the configuration also records the input hash, seed, exclusion tolerance and installed dependency versions. The embedding model revision was not pinned.
+
+**QA supports the expected SGI signal.** Grounded responses have a higher average SGI, and AUROC is approximately 0.740. This is evidence of useful ranking on this subset, not 74% classification accuracy.
+
+**The signal does not generalize uniformly across tasks.** Dialogue ranking is slightly below chance in the assumed direction. Summarization reverses that direction: hallucinated summaries have a higher mean SGI and AUROC is below 0.5. The fixed summarization instruction is one possible contributor to investigate, not an established explanation. The pooled AUROC of 0.540 gives little evidence of useful ranking across the combined tasks.
+
+**Dialogue needs a distribution-level investigation.** Its mean SGI gap is large relative to its tiny Cohen's d, suggesting substantial dispersion or extreme ratios. A near-zero exclusion count of zero does not rule out small denominators above the cutoff. Quantiles, maximum scores and response-context angles should be inspected before interpreting class means. The summary table alone cannot establish the cause.
+
+These are descriptive results from a single run. Confidence intervals, fitted decision thresholds and held-out binary classification metrics are still pending.
 
 For comparison only, the paper's Table 1 reports the following **published HaluEval QA results**, which are not results produced by this project:
 
@@ -70,6 +187,12 @@ For comparison only, the paper's Table 1 reports the following **published HaluE
 | all-mpnet-base-v2 | 1.142 | 0.921 | 0.92 | 0.776 |
 
 Source: [Marín, Section 6.1, Table 1](https://arxiv.org/html/2602.13224v1#S6.SS1). This is a QA reference point; it should not be compared directly with a pooled result across all three tasks.
+
+The project's QA AUROC is **0.0361 lower** than the published 0.776, and Cohen's d is 0.8058 versus 0.92. The direction agrees, but the cause of the gap remains unresolved. The earlier [SGI implementation description](https://arxiv.org/html/2512.13771v1#S4.SS1) describes a sampled evaluation, segmentation of long contexts and an additive denominator epsilon. Our run uses all QA pairs, truncates strings and excludes very small denominator angles. Exact historical row selection and preprocessing are not fully matched.
+
+Manual masked mean pooling and the 384-token limit agree with the [model card](https://huggingface.co/sentence-transformers/all-mpnet-base-v2#usage-huggingface-transformers). Neither is evidence of an implementation error on its own. The dialogue and summarization runs extend the paper's reported QA SGI comparison. No synthetic instruction is used for dialogue, and the summarization instruction does not generate the dataset's summaries.
+
+[ANALYSIS.md](ANALYSIS.md) records approaches, threshold comparisons and conclusions. [PROGRESS.md](PROGRESS.md) tracks completed work and open questions.
 
 ## Run the notebook
 
@@ -96,16 +219,31 @@ By default, artifacts are written under:
     ├── environment.json
     ├── run_config.json
     ├── sgi_scores.parquet
-    └── sgi_metrics.csv
+    ├── sgi_metrics.csv
+    ├── threshold_metrics.csv
+    ├── threshold_accuracy.csv
+    ├── threshold_accuracy_change_pp.csv
+    ├── threshold_sweep_config.json
+    └── ANALYSIS.md
 ```
 
 Edit `PROJECT_ROOT` to change the output location. The revised cache namespace uses content and configuration validation; it intentionally recomputes legacy caches that lack this provenance. Existing dataset checkouts are reused, and their Git revision is recorded.
 
+### Run only the threshold comparison
+
+Once `sgi_scores.parquet` exists on Drive, mount Drive and run section 6, **Compare SGI thresholds**. In a fresh runtime install `numpy`, `pandas` and `pyarrow` first. Set `PROJECT_ROOT` in that cell to your project folder. No embedding model or GPU is needed for this section.
+
+The default grid is **1.00, 1.05, ..., 2.00**, with both endpoints included. The prediction rule is **hallucination if SGI < threshold**; a score equal to the threshold is classified as grounded. The same direction is used for all tasks. The upper endpoint is an exploratory setting, not a theoretical limit. This grid does not test thresholds below 1.00.
+
+The cell prints a task-by-threshold accuracy table and changes from threshold 1.00 in percentage points. It exports detailed metrics, the source-score hash and a Markdown report.
+
+The repository's comparison table is pending until that run. The sweep compares fixed cutoffs on the available data. It does not select or validate a threshold on a separate test set.
+
 ## Understanding the evaluation metrics
 
-The notebook treats **hallucination as the positive class** (`label=1`). Its final table describes how SGI separates the HaluEval labels; it does not yet report the percentage of correct binary predictions.
+The notebook treats **hallucination as the positive class** (`label=1`). The SGI summary measures ranking and class separation. Section 6 adds descriptive binary decision metrics for each fixed threshold. Results from that new section are pending execution.
 
-### Metrics currently computed
+### Ranking and separation metrics
 
 | Output column | Meaning and interpretation |
 | --- | --- |
@@ -119,9 +257,17 @@ The notebook treats **hallucination as the positive class** (`label=1`). Its fin
 
 Class means, Cohen's d and AUROC use only rows with a valid SGI. Metrics without enough usable observations or class variation are reported as missing (`NaN`). Compare the QA row with the paper's QA results; the `all` row pools different tasks and can hide differences between them.
 
+### How AUROC works
+
+For a chosen cutoff, recall or true positive rate is `TP / (TP + FN)`. The false positive rate is `FP / (FP + TN)`: the fraction of grounded responses incorrectly flagged as hallucinations. A ROC curve plots true positive rate against false positive rate as the cutoff moves across the observed scores. AUROC is the area under this curve.
+
+Our hallucination score is `-SGI`, so a lower SGI means stronger predicted hallucination. AUROC uses the ranking across the full score range, not just the 1.00 to 2.00 grid. An AUROC of 0.74 means a random hallucinated response outranks a random grounded response about 74% of the time, counting ties as half. It does not mean 74% of responses are correctly classified at threshold 1.00.
+
+Changing the decision threshold leaves AUROC unchanged for the same scored rows. It changes accuracy and the confusion matrix. Below-chance AUROC suggests an opposite ranking direction on the evaluated data; it does not establish that reversing the score will generalize to new data.
+
 ### Metrics requiring a binary decision threshold
 
-The following metrics are **not currently computed**. To obtain them, first choose a threshold `t` and predict hallucination when `SGI < t`. Select the threshold on a development set, then evaluate it on a separate test set, keeping both responses from each `pair_id` in the same split.
+Section 6 now computes the following metrics at each fixed threshold `t`, predicting hallucination when `SGI < t`. These results are descriptive until a threshold is selected on development data and evaluated on a separate test set. Keep both responses from each `pair_id` in the same split.
 
 The confusion matrix counts the four possible outcomes:
 
@@ -138,24 +284,30 @@ These counts define the decision metrics:
 | Recall | `TP / (TP + FN)` | Of all labeled hallucinations, what fraction did the detector catch? |
 | F1 | `2TP / (2TP + FP + FN)` | What is the harmonic mean of precision and recall? It penalizes an imbalance between them and does not account for true negatives. |
 | Accuracy | `(TP + TN) / (TP + FP + FN + TN)` | What fraction of all binary decisions match the labels? It can be misleading when one class dominates. |
+| False positive rate | `FP / (FP + TN)` | What fraction of grounded responses are incorrectly flagged? This is the horizontal axis of the ROC curve. |
+| Predicted hallucination rate | `(TP + FP) / N` | What fraction of usable responses are flagged, regardless of whether the flag is correct? |
+| Accuracy change | `100 * (accuracy(t) - accuracy(1.00))` | How many percentage points accuracy changes from the starting threshold. This is not a relative percentage improvement. |
 
-Undefined ratios need an explicit reporting convention, such as `NaN`. Changing the threshold trades missed hallucinations against false alarms. These metrics measure agreement with HaluEval annotations, not universal factual correctness, and their values can change with the class balance and task.
+Undefined ratios are reported as `NaN`. Accuracy exports use fractions from 0 to 1; Markdown tables show percentages. The current task subsets are balanced, so always predicting either class would give 50% accuracy. Each threshold result includes evaluated and excluded row counts; nonfinite scores and invalid labels are excluded. Changing the threshold trades missed hallucinations against false alarms. These metrics measure agreement with HaluEval annotations, not universal factual correctness, and their values can change with the class balance and task.
 
 ## Interpretation and limitations
 
-The evaluation is descriptive over the available labeled data. It does not fit a threshold or establish held-out classifier performance. SGI = 1 has a geometric interpretation but is not a validated decision threshold. Reference and hallucinated responses share source items, so any future data split or bootstrap must group them by `pair_id`.
+The evaluation is descriptive over the available labeled data. It compares prespecified cutoffs without fitting a threshold or establishing held-out classifier performance. SGI = 1 has a geometric interpretation but is not a validated decision threshold. Reference and hallucinated responses share source items, so any future data split or bootstrap must group them by `pair_id`.
 
-Results depend on the encoder, text length, task and benchmark construction. HaluEval's generated hallucinations may carry stylistic artifacts, and separation on this benchmark would not establish general factuality detection. In particular, this project has not reproduced the paper's performance claims, evaluated transfer, or supplied confidence intervals. The most direct next experiment is to execute the QA evaluation and compare its metrics with the published reference under documented preprocessing.
+Results depend on the encoder, text length, task and benchmark construction. HaluEval's generated hallucinations may carry stylistic artifacts, and separation on this benchmark would not establish general factuality detection. The first run supports the expected effect on QA but does not establish an exact reproduction or a universal detector. Transfer and confidence intervals have not been evaluated. The next priorities are inspecting score distributions, checking extreme ratios and adding paired bootstrap intervals before selecting and testing a binary decision threshold.
 
 ## TODOs
 
 The next steps focus on completing and assessing the HaluEval experiment before expanding its scope.
 
-- [ ] **Run the revised notebook in Colab.** Generate or validate the embeddings, execute SGI evaluation and save the actual metrics with the dataset revision and run configuration.
-- [ ] **Document the first measured results.** Add per-subset means, Cohen's d and AUROC to this README. Compare QA with the paper's QA reference and explain any preprocessing differences rather than assuming an exact replication.
+- [x] **Run the revised notebook in Colab.** Generate or validate the embeddings, execute SGI evaluation and save the actual metrics with the dataset revision and run configuration.
+- [x] **Document the first measured results.** Add per-subset means, Cohen's d and AUROC to this README. Compare QA with the paper's QA reference and explain any preprocessing differences rather than assuming an exact replication.
+- [ ] **Investigate extreme SGI ratios.** Inspect dialogue quantiles, maximum scores and small response-context angles to explain the large mean gap alongside a tiny effect size. Report diagnostics before considering any change to exclusions.
 - [ ] **Inspect the score distributions.** Plot SGI by class, ROC curves and the relationship between question-context angular distance and detection performance. Check whether class separation changes as the question and context become farther apart.
 - [ ] **Add uncertainty estimates.** Compute bootstrap confidence intervals for AUROC and effect sizes, resampling source pairs together by `pair_id`.
-- [ ] **Evaluate binary decisions.** Create development and test splits grouped by `pair_id`, choose a threshold on development data using a stated objective, then report test precision, recall, F1, accuracy and the confusion matrix. Do not choose the threshold using test labels.
+- [x] **Implement a descriptive threshold sweep.** Add a fixed 1.00 to 2.00 grid in steps of 0.05, per-task decision metrics and an analysis report. Execution and measured accuracy are still pending.
+- [ ] **Run and review the threshold sweep.** Save its tables and replace the pending table in ANALYSIS.md with the Colab report.
+- [ ] **Evaluate binary decisions on held-out data.** Create development and test splits grouped by `pair_id`, choose a threshold on development data using a stated objective, then report test precision, recall, F1, accuracy and the confusion matrix. Do not choose the threshold using test labels.
 - [ ] **Analyze failures.** Inspect false alarms and missed hallucinations, including plausible factual errors, unusually short responses and cases where evidence was truncated.
 - [ ] **Compare with simple baselines.** Evaluate response-context cosine similarity and response-context angular distance on the same rows to establish whether the SGI ratio adds useful information.
 - [ ] **Check robustness within HaluEval.** Compare encoders and token limits, report QA, dialogue and summarization separately, and keep test data out of model and parameter selection.
@@ -177,9 +329,13 @@ SGI needs a question, context and response. General queries have no supplied con
 
 The 384-token limit can remove evidence from long contexts. Separately, semantically plausible false claims may remain close to the context even when their details are wrong. Both are limitations to investigate through error analysis; their impact has not yet been measured in this project.
 
+### Uneven task performance and unstable summaries
+
+The first run gives a QA AUROC of 0.7399, but only 0.4745 for dialogue and 0.4084 for summarization under the same scoring direction. A single pooled metric obscures these differences. Dialogue also combines a large mean gap with Cohen's d of only 0.0189, which calls for inspection of dispersion, extreme ratios and denominator angles. No rows were excluded by the existing tolerance, and the cause has not yet been established from individual scores.
+
 ### From a score to a decision
 
-The current evaluation measures ranking and class separation. It does not yet establish a decision threshold or test precision and recall. The paired responses also require grouped splits to avoid evaluating on another response from the same source item used during development. SGI = 1 should therefore not be presented as an empirically validated cutoff.
+The evaluation measures ranking, class separation and descriptive decisions at fixed cutoffs. It does not yet establish a validated threshold or held-out precision and recall. The paired responses also require grouped splits to avoid evaluating on another response from the same source item used during development. SGI = 1 should therefore not be presented as an empirically validated cutoff.
 
 ## References
 
