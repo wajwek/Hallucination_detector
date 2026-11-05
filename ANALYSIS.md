@@ -8,10 +8,6 @@ This project tests SGI on HaluEval. It follows the paper's geometric idea but do
 
 The November 4 run used all-mpnet-base-v2, a 384-token limit and manual masked mean pooling with L2 normalization. Its AUROC values were QA 0.73986109, dialogue 0.47446514, summarization 0.40841045 and pooled 0.53972089. These historical values are not recomputed by this threshold sweep.
 
-## Status
-
-Threshold code is ready. The table is pending a Colab run; accuracy cannot be recovered from the existing class means or AUROC. No threshold results have been measured locally.
-
 ## Approach 1: threshold sensitivity
 
 Rule: predict hallucination when SGI < threshold. Equality is classified as grounded. The fixed grid is 1.00 through 2.00, inclusive, in steps of 0.05. This keeps the same scoring direction for every task. AUROC is independent of this chosen grid; accuracy, precision, recall, F1 and confusion counts depend on the threshold.
@@ -21,27 +17,27 @@ The table below reports descriptive accuracy on the saved scores. It is not an i
 <!-- THRESHOLD_TABLE_START -->
 | SGI threshold | QA accuracy | Dialogue accuracy | Summarization accuracy | All accuracy |
 | ---: | ---: | ---: | ---: | ---: |
-| 1.00 | Pending | Pending | Pending | Pending |
-| 1.05 | Pending | Pending | Pending | Pending |
-| 1.10 | Pending | Pending | Pending | Pending |
-| 1.15 | Pending | Pending | Pending | Pending |
-| 1.20 | Pending | Pending | Pending | Pending |
-| 1.25 | Pending | Pending | Pending | Pending |
-| 1.30 | Pending | Pending | Pending | Pending |
-| 1.35 | Pending | Pending | Pending | Pending |
-| 1.40 | Pending | Pending | Pending | Pending |
-| 1.45 | Pending | Pending | Pending | Pending |
-| 1.50 | Pending | Pending | Pending | Pending |
-| 1.55 | Pending | Pending | Pending | Pending |
-| 1.60 | Pending | Pending | Pending | Pending |
-| 1.65 | Pending | Pending | Pending | Pending |
-| 1.70 | Pending | Pending | Pending | Pending |
-| 1.75 | Pending | Pending | Pending | Pending |
-| 1.80 | Pending | Pending | Pending | Pending |
-| 1.85 | Pending | Pending | Pending | Pending |
-| 1.90 | Pending | Pending | Pending | Pending |
-| 1.95 | Pending | Pending | Pending | Pending |
-| 2.00 | Pending | Pending | Pending | Pending |
+| 1.00 | 63.77% | 47.94% | 50.00% | 53.90% |
+| 1.05 | 60.98% | 46.41% | 50.00% | 52.47% |
+| 1.10 | 59.16% | 45.70% | 49.99% | 51.62% |
+| 1.15 | 57.53% | 45.85% | 49.98% | 51.12% |
+| 1.20 | 55.81% | 46.35% | 49.98% | 50.71% |
+| 1.25 | 54.20% | 46.87% | 49.96% | 50.34% |
+| 1.30 | 53.10% | 47.30% | 49.94% | 50.11% |
+| 1.35 | 52.04% | 47.80% | 49.94% | 49.93% |
+| 1.40 | 51.30% | 48.21% | 49.90% | 49.80% |
+| 1.45 | 50.81% | 48.55% | 49.83% | 49.73% |
+| 1.50 | 50.47% | 48.87% | 49.77% | 49.70% |
+| 1.55 | 50.29% | 49.10% | 49.57% | 49.65% |
+| 1.60 | 50.11% | 49.20% | 49.38% | 49.57% |
+| 1.65 | 50.03% | 49.31% | 49.28% | 49.54% |
+| 1.70 | 49.95% | 49.51% | 48.97% | 49.48% |
+| 1.75 | 49.94% | 49.58% | 48.54% | 49.35% |
+| 1.80 | 49.89% | 49.66% | 48.19% | 49.25% |
+| 1.85 | 49.90% | 49.77% | 47.88% | 49.18% |
+| 1.90 | 49.94% | 49.80% | 47.41% | 49.05% |
+| 1.95 | 49.95% | 49.83% | 46.99% | 48.92% |
+| 2.00 | 49.97% | 49.84% | 46.47% | 48.76% |
 <!-- THRESHOLD_TABLE_END -->
 
 Accuracy is the fraction of labels predicted correctly. CSV values are fractions; this table shows percentages. The sweep exports precision, recall, F1 and TP/FP/TN/FN for every task and threshold. Undefined ratios are NaN. Nonfinite SGI values and invalid labels are excluded and counted.
@@ -60,4 +56,4 @@ An always-one-class prediction would score 50% on the balanced November 4 task s
 
 ## Run evidence
 
-Source score hash and grid settings are saved in threshold_sweep_config.json. Detailed counts are in threshold_metrics.csv; accuracy is in threshold_accuracy.csv and changes from threshold 1.00 are in threshold_accuracy_change_pp.csv. Preserve these files with the run before changing settings. Replace the repository's ANALYSIS.md with this report after reviewing the Colab output.
+Source score hash and grid settings are saved in `results/HaluEval/threshold_sweep_config.json`. Detailed counts are in `results/HaluEval/threshold_metrics.csv`; accuracy is in `results/HaluEval/threshold_accuracy.csv` and changes from threshold 1.00 are in `results/HaluEval/threshold_accuracy_change_pp.csv`. Preserve these files with the run before changing settings.
