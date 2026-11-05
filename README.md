@@ -168,7 +168,7 @@ The revised pipeline was executed on 60,000 complete HaluEval triplets. Each tas
 | Summarization | 20,000 | 2.5009 | 2.6832 | -0.3135 | 0.4084 |
 | All tasks | 60,000 | 1.9033 | 1.5420 | 0.0109 | 0.5397 |
 
-Full-precision exports are committed as [sgi_metrics.csv](results/HaluEval/sgi_metrics.csv), [run_config.json](results/HaluEval/run_config.json) and [environment.json](results/HaluEval/environment.json). They were read from the Colab output folder on Google Drive. The per-response score file and embedding arrays remain external; these summary metrics have not been independently recomputed from those arrays here. The local notebook has no saved execution outputs.
+Full-precision exports are committed as [sgi_metrics.csv](results/HaluEval/sgi_metrics.csv), [run_config.json](results/HaluEval/run_config.json) and [environment.json](results/HaluEval/environment.json). They were read from the Colab output folder on Google Drive. Embedding arrays remain on Drive. The per-response score file is now available locally and ignored by Git. Local checks reproduced the recorded per-task AUROC and class means from those saved scores; embeddings were not recomputed. The local notebook now includes saved outputs from the completed Colab evaluation and threshold sweep.
 
 The recorded run used `all-mpnet-base-v2`, a 384-token limit, batch size 32, manual mean pooling and L2 normalization. The HaluEval source revision is `b7253db3cdaa0ab2c382f92b26b390109174f77e`; the configuration also records the input hash, seed, exclusion tolerance and installed dependency versions. The embedding model revision was not pinned.
 
@@ -193,6 +193,29 @@ The project's QA AUROC is **0.0361 lower** than the published 0.776, and Cohen's
 Manual masked mean pooling and the 384-token limit agree with the [model card](https://huggingface.co/sentence-transformers/all-mpnet-base-v2#usage-huggingface-transformers). Neither is evidence of an implementation error on its own. The dialogue and summarization runs extend the paper's reported QA SGI comparison. No synthetic instruction is used for dialogue, and the summarization instruction does not generate the dataset's summaries.
 
 [ANALYSIS.md](ANALYSIS.md) records approaches, threshold comparisons and conclusions. [PROGRESS.md](PROGRESS.md) tracks completed work and open questions.
+
+## Run analysis locally in VS Code and WSL
+
+Embedding generation stays in the Colab notebook. Saved-score analysis runs locally on CPU using [SGI_analysis_local.ipynb](SGI_analysis_local.ipynb) or [scripts/analyze_sgi.py](scripts/analyze_sgi.py). The local path does not import PyTorch, Transformers or Google Colab.
+
+Create a Python environment and install the analysis dependencies once:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-analysis.txt
+```
+
+The input is `results/HaluEval/sgi_scores.parquet`. This local data file is ignored by Git. It must be available before running analysis; the aggregate metrics CSV cannot replace individual scores.
+
+Open the local notebook in a VS Code window connected to WSL and select the `.venv/bin/python` interpreter. Run all cells to calculate the threshold grid and midpoint decisions. The notebook retains output tables when saved.
+
+The same analysis can run from the repository terminal:
+
+```bash
+.venv/bin/python scripts/analyze_sgi.py
+```
+
+The command writes CSVs and the run report under `results/HaluEval/thresholds_0.70_1.40/` and updates the root `ANALYSIS.md` directly. The first previous root report is preserved in that output folder. Use `--no-update-report` to leave the root report unchanged, or `--scores PATH` to read a different saved-score file. Changing the grid is supported with `--start`, `--stop` and `--step`; it must include the reference threshold 1.00.
 
 ## Run the notebook
 
@@ -233,15 +256,15 @@ Edit `PROJECT_ROOT` to change the output location. The revised cache namespace u
 
 Once `sgi_scores.parquet` exists on Drive, mount Drive and run section 6, **Compare SGI thresholds**. In a fresh runtime install `numpy`, `pandas` and `pyarrow` first. Set `PROJECT_ROOT` in that cell to your project folder. No embedding model or GPU is needed for this section.
 
-The default grid is **1.00, 1.05, ..., 2.00**, with both endpoints included. The prediction rule is **hallucination if SGI < threshold**; a score equal to the threshold is classified as grounded. The same direction is used for all tasks. The upper endpoint is an exploratory setting, not a theoretical limit. This grid does not test thresholds below 1.00.
+The default grid is **0.70, 0.75, ..., 1.40**, with both endpoints included. The prediction rule is **hallucination if SGI < threshold**; a score equal to the threshold is classified as grounded. The same direction is used for all tasks. The upper endpoint is an exploratory setting, not a theoretical limit. It includes thresholds below 1.00. Accuracy changes still use 1.00 as the reference.
 
 The cell prints a task-by-threshold accuracy table and changes from threshold 1.00 in percentage points. It exports detailed metrics, the source-score hash and a Markdown report.
 
-The repository's comparison table is pending until that run. The sweep compares fixed cutoffs on the available data. It does not select or validate a threshold on a separate test set.
+The completed historical 1.00-2.00 comparison is available in [ANALYSIS.md](ANALYSIS.md). The revised grid and midpoint decision metrics have now been evaluated locally and are recorded in ANALYSIS.md. The sweep compares fixed cutoffs on the available data. It does not select or validate a threshold on a separate test set.
 
 ## Understanding the evaluation metrics
 
-The notebook treats **hallucination as the positive class** (`label=1`). The SGI summary measures ranking and class separation. Section 6 adds descriptive binary decision metrics for each fixed threshold. Results from that new section are pending execution.
+The notebook treats **hallucination as the positive class** (`label=1`). The SGI summary measures ranking and class separation. Section 6 computes descriptive decision metrics for the fixed grid and class-mean midpoint thresholds. Historical and revised sweep results are saved in CSV, and the local notebook includes execution outputs.
 
 ### Ranking and separation metrics
 
@@ -257,11 +280,19 @@ The notebook treats **hallucination as the positive class** (`label=1`). The SGI
 
 Class means, Cohen's d and AUROC use only rows with a valid SGI. Metrics without enough usable observations or class variation are reported as missing (`NaN`). Compare the QA row with the paper's QA results; the `all` row pools different tasks and can hide differences between them.
 
+### Class-mean midpoint thresholds
+
+Section 6 also estimates a separate threshold for each task as `(mean_sgi_grounded + mean_sgi_hallucinated) / 2`. It evaluates this threshold at full precision, even when it falls outside the fixed grid. The original below-threshold rule remains the main comparison. A second, explicitly labeled diagnostic uses the direction of the class means; reversed means lead to an above-threshold rule. Equality is grounded in both policies.
+
+A midpoint is a heuristic, not a guaranteed optimum. Means can be distorted by extreme scores, and unequal distributions need not be best separated at their midpoint. These thresholds and diagnostic directions are estimated and evaluated on the same data. They do not establish held-out performance or change the baseline AUROC.
+
+New grid and midpoint exports are saved under `results/HaluEval/thresholds_0.70_1.40/`, including `midpoint_estimates.csv`, `midpoint_metrics.csv` and an updated analysis report. Existing parent-folder exports preserve the earlier run.
+
 ### How AUROC works
 
 For a chosen cutoff, recall or true positive rate is `TP / (TP + FN)`. The false positive rate is `FP / (FP + TN)`: the fraction of grounded responses incorrectly flagged as hallucinations. A ROC curve plots true positive rate against false positive rate as the cutoff moves across the observed scores. AUROC is the area under this curve.
 
-Our hallucination score is `-SGI`, so a lower SGI means stronger predicted hallucination. AUROC uses the ranking across the full score range, not just the 1.00 to 2.00 grid. An AUROC of 0.74 means a random hallucinated response outranks a random grounded response about 74% of the time, counting ties as half. It does not mean 74% of responses are correctly classified at threshold 1.00.
+Our hallucination score is `-SGI`, so a lower SGI means stronger predicted hallucination. AUROC uses the ranking across the full score range, not just the 0.70 to 1.40 grid. An AUROC of 0.74 means a random hallucinated response outranks a random grounded response about 74% of the time, counting ties as half. It does not mean 74% of responses are correctly classified at threshold 1.00.
 
 Changing the decision threshold leaves AUROC unchanged for the same scored rows. It changes accuracy and the confusion matrix. Below-chance AUROC suggests an opposite ranking direction on the evaluated data; it does not establish that reversing the score will generalize to new data.
 
@@ -305,8 +336,10 @@ The next steps focus on completing and assessing the HaluEval experiment before 
 - [ ] **Investigate extreme SGI ratios.** Inspect dialogue quantiles, maximum scores and small response-context angles to explain the large mean gap alongside a tiny effect size. Report diagnostics before considering any change to exclusions.
 - [ ] **Inspect the score distributions.** Plot SGI by class, ROC curves and the relationship between question-context angular distance and detection performance. Check whether class separation changes as the question and context become farther apart.
 - [ ] **Add uncertainty estimates.** Compute bootstrap confidence intervals for AUROC and effect sizes, resampling source pairs together by `pair_id`.
-- [x] **Implement a descriptive threshold sweep.** Add a fixed 1.00 to 2.00 grid in steps of 0.05, per-task decision metrics and an analysis report. Execution and measured accuracy are still pending.
-- [ ] **Run and review the threshold sweep.** Save its tables and replace the pending table in ANALYSIS.md with the Colab report.
+- [x] **Implement a descriptive threshold sweep.** The historical 1.00-2.00 run is complete. The next grid covers 0.70-1.40 in steps of 0.05.
+- [x] **Implement class-mean midpoint evaluation.** Calculate each midpoint and compare the fixed-below rule with a separately labeled mean-based direction diagnostic.
+- [x] **Run the revised grid and midpoint evaluation.** Evaluated locally from the saved scores; recorded new decision metrics and verified agreement with overlapping historical thresholds.
+- [x] **Run and review the threshold sweep.** Save its tables and replace the pending table in ANALYSIS.md with the Colab report. Check confusion counts, derived metrics and pooled results for consistency.
 - [ ] **Evaluate binary decisions on held-out data.** Create development and test splits grouped by `pair_id`, choose a threshold on development data using a stated objective, then report test precision, recall, F1, accuracy and the confusion matrix. Do not choose the threshold using test labels.
 - [ ] **Analyze failures.** Inspect false alarms and missed hallucinations, including plausible factual errors, unusually short responses and cases where evidence was truncated.
 - [ ] **Compare with simple baselines.** Evaluate response-context cosine similarity and response-context angular distance on the same rows to establish whether the SGI ratio adds useful information.

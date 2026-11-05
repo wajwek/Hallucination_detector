@@ -17,7 +17,7 @@ This file tracks established findings and open investigations. Mark an item comp
 - [x] Record pooled AUROC 0.53972089 and zero exclusions under the current denominator tolerance.
 - [x] Document the numerical QA comparison with the paper in README: AUROC 0.7399 versus 0.776, Cohen's d 0.8058 versus 0.92. This comparison does not establish matched protocols or a statistically significant difference.
 
-Evidence: [metrics](results/HaluEval/sgi_metrics.csv), [run configuration](results/HaluEval/run_config.json), [environment](results/HaluEval/environment.json). These are exports from the November 4 Colab run. The local notebook has no saved execution outputs; individual score and embedding files remain on Google Drive. The summary metrics have not been independently recomputed here.
+Evidence: [metrics](results/HaluEval/sgi_metrics.csv), [run configuration](results/HaluEval/run_config.json), [environment](results/HaluEval/environment.json). These are exports from the November 4 Colab run. The local notebook now contains saved Colab execution outputs; individual score and embedding files remain on Google Drive. Local checks now reproduce the recorded per-task AUROC and class means from the saved individual scores. Embeddings were not recomputed.
 
 ## Next investigation: explain the QA difference
 
@@ -44,6 +44,18 @@ Evidence: [metrics](results/HaluEval/sgi_metrics.csv), [run configuration](resul
 - [ ] Separate effects of the question input, truncation and response characteristics before assigning a cause to the reversed summarization result.
 - [ ] Write task-specific conclusions and limitations, avoiding general factuality claims.
 
+## Threshold experiments
+
+- [x] Complete and verify the historical 1.00-2.00 sweep with 21 thresholds and 84 task-threshold rows.
+- [x] Implement a new 0.70-1.40 sweep with 15 thresholds, step 0.05, preserving 1.00 as the accuracy reference.
+- [x] Calculate class-mean midpoint estimates from the existing baseline means and save their provenance in ANALYSIS.md.
+- [x] Implement separate midpoint decision metrics for the fixed-below rule and the diagnostic direction inferred from class means.
+- [x] Keep new exports in a separate directory so the completed baseline remains available.
+- [x] Check midpoint arithmetic, equality boundaries, both directions, missing classes and report exports on controlled fixtures. Real-data execution remains pending.
+- [x] Run the revised grid and midpoint analysis locally in WSL, preserving the original Colab exports.
+- [x] Measure midpoint accuracy and recall on the saved scores. QA midpoint accuracy is 0.6508; summarization is 0.4334 with the original direction and 0.5666 with the diagnostic reversed direction. These are same-data descriptive results.
+- [ ] Investigate midpoint sensitivity to skew and extreme SGI values before selecting a threshold.
+
 ## Later evaluation
 
 - [ ] Compare SGI with response-context similarity baselines on the same rows.
@@ -66,3 +78,9 @@ Evidence: [metrics](results/HaluEval/sgi_metrics.csv), [run configuration](resul
 - November 5, 2026: completed the first protocol audit and documented actual task examples. Confirmed sample-selection, long-context handling and denominator-rule mismatches against the original SGI description. Exact source rows, historical code and causes of the metric gap remain unresolved.
 
 - November 5, 2026: added the descriptive threshold sweep (1.00 to 2.00, step 0.05), moved public examples into README.md and added tracked ANALYSIS.md. Code checks are separate from experiment execution; threshold results remain pending.
+
+- November 5, 2026: imported the executed notebook and threshold CSVs, recovered the missing sweep configuration from Drive, and replaced the pending analysis table with measured results. Checked all 84 metric rows against their confusion counts, pooled counts and accuracy changes. No independent recomputation from individual scores was performed.
+
+- November 5, 2026: changed the next grid to 0.70-1.40 in steps of 0.05 and added class-mean midpoint evaluation. Midpoint estimates are calculated from baseline exports; new decision metrics await Colab execution. The summarization midpoint is about 2.592044 and is evaluated separately from the grid, including an explicitly labeled reversed-direction diagnostic.
+
+- November 5, 2026: configured a local WSL virtual environment, Python kernel, analysis notebook and CLI. Downloaded the individual score file from connected Drive and verified its recorded SHA-256. Executed the local notebook with saved outputs. Reproduced the baseline per-task AUROC and means, verified the overlapping grid results and updated ANALYSIS.md directly from the local analysis. Added a local VS Code task for repeat runs without file copying.

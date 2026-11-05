@@ -35,3 +35,10 @@ datasets/
 # Packaging
 
 *.egg-info/
+
+# Windows download metadata
+*Zone.Identifier
+
+# Local per-response scores
+/results/HaluEval/sgi_scores.parquet
+/results/HaluEval/sgi_scores.parquet.part

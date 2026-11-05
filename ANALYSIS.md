@@ -2,21 +2,20 @@
 
 ## Scope
 
-This project tests SGI on HaluEval. It follows the paper's geometric idea but does not fully replicate its experiment. QA is the comparison task. Dialogue uses conversation history as q; summarization uses our fixed instruction as q. Causes of the task differences remain untested.
+SGI is evaluated on HaluEval QA, dialogue and summarization. This is not a full replication of the paper. Dialogue uses the conversation history as q; summarization uses a fixed instruction added by this project.
 
-## Recorded baseline
+## Approach 1: fixed threshold grid
 
-The November 4 run used all-mpnet-base-v2, a 384-token limit and manual masked mean pooling with L2 normalization. Its AUROC values were QA 0.73986109, dialogue 0.47446514, summarization 0.40841045 and pooled 0.53972089. These historical values are not recomputed by this threshold sweep.
+Predict hallucination when SGI < threshold; equality is grounded. The current grid is 0.70 to 1.40, inclusive, in steps of 0.05. Accuracy changes are measured against threshold 1.00 in percentage points. These results describe the saved labeled scores, not an independent test set.
 
-## Approach 1: threshold sensitivity
-
-Rule: predict hallucination when SGI < threshold. Equality is classified as grounded. The fixed grid is 1.00 through 2.00, inclusive, in steps of 0.05. This keeps the same scoring direction for every task. AUROC is independent of this chosen grid; accuracy, precision, recall, F1 and confusion counts depend on the threshold.
-
-The table below reports descriptive accuracy on the saved scores. It is not an independent test of a selected threshold. Inspecting all rows and reporting the highest value as test performance would overstate the result. The current grid does not cover thresholds below 1.00, where QA may also have useful operating points.
-
-<!-- THRESHOLD_TABLE_START -->
 | SGI threshold | QA accuracy | Dialogue accuracy | Summarization accuracy | All accuracy |
 | ---: | ---: | ---: | ---: | ---: |
+| 0.70 | 61.18% | 50.30% | 50.00% | 53.83% |
+| 0.75 | 64.53% | 50.62% | 50.00% | 55.05% |
+| 0.80 | 67.83% | 51.39% | 50.00% | 56.41% |
+| 0.85 | 70.56% | 52.05% | 50.00% | 57.54% |
+| 0.90 | 70.17% | 52.49% | 50.00% | 57.55% |
+| 0.95 | 66.73% | 50.75% | 50.00% | 55.83% |
 | 1.00 | 63.77% | 47.94% | 50.00% | 53.90% |
 | 1.05 | 60.98% | 46.41% | 50.00% | 52.47% |
 | 1.10 | 59.16% | 45.70% | 49.99% | 51.62% |
@@ -26,34 +25,33 @@ The table below reports descriptive accuracy on the saved scores. It is not an i
 | 1.30 | 53.10% | 47.30% | 49.94% | 50.11% |
 | 1.35 | 52.04% | 47.80% | 49.94% | 49.93% |
 | 1.40 | 51.30% | 48.21% | 49.90% | 49.80% |
-| 1.45 | 50.81% | 48.55% | 49.83% | 49.73% |
-| 1.50 | 50.47% | 48.87% | 49.77% | 49.70% |
-| 1.55 | 50.29% | 49.10% | 49.57% | 49.65% |
-| 1.60 | 50.11% | 49.20% | 49.38% | 49.57% |
-| 1.65 | 50.03% | 49.31% | 49.28% | 49.54% |
-| 1.70 | 49.95% | 49.51% | 48.97% | 49.48% |
-| 1.75 | 49.94% | 49.58% | 48.54% | 49.35% |
-| 1.80 | 49.89% | 49.66% | 48.19% | 49.25% |
-| 1.85 | 49.90% | 49.77% | 47.88% | 49.18% |
-| 1.90 | 49.94% | 49.80% | 47.41% | 49.05% |
-| 1.95 | 49.95% | 49.83% | 46.99% | 48.92% |
-| 2.00 | 49.97% | 49.84% | 46.47% | 48.76% |
-<!-- THRESHOLD_TABLE_END -->
 
-Accuracy is the fraction of labels predicted correctly. CSV values are fractions; this table shows percentages. The sweep exports precision, recall, F1 and TP/FP/TN/FN for every task and threshold. Undefined ratios are NaN. Nonfinite SGI values and invalid labels are excluded and counted.
+## Approach 2: midpoint of class means
 
-## Conclusions and next checks
+For each task, threshold = (mean grounded SGI + mean hallucinated SGI) / 2. The pooled row is an additional summary, not a replacement for task-specific thresholds. Midpoints are evaluated at full precision and are not clipped to the grid. Means, thresholds and metrics use only finite SGI values with binary labels.
 
-The baseline suggests useful QA ranking, weak dialogue ranking and reversed summarization ranking. It does not establish why. The sweep measures how decisions change as the cutoff increases; it does not change or improve AUROC. Increasing the threshold can only increase or preserve the number of hallucination predictions. Recall cannot decrease, while false alarms cannot decrease; accuracy and precision can move in either direction.
+| Task | Mean SGI: grounded | Mean SGI: hallucinated | Midpoint | Accuracy: SGI < midpoint | Mean-based rule | Accuracy: mean-based rule |
+| --- | ---: | ---: | ---: | ---: | --- | ---: |
+| qa | 1.066184 | 0.885615 | 0.975899 | 65.08% | SGI < midpoint | 65.08% |
+| dialogue | 2.142929 | 1.057075 | 1.600002 | 49.20% | SGI < midpoint | 49.20% |
+| summarization | 2.500901 | 2.683187 | 2.592044 | 43.34% | SGI > midpoint | 56.66% |
+| all | 1.903338 | 1.541959 | 1.722648 | 49.43% | SGI < midpoint | 49.43% |
 
-An always-one-class prediction would score 50% on the balanced November 4 task subsets. Compare threshold accuracy with that baseline. The pooled result does not replace task-specific conclusions. No threshold has been selected or validated for deployment.
+The fixed-below column preserves the original SGI rule. The mean-based diagnostic flags scores above the midpoint when the hallucinated mean exceeds the grounded mean. Equality is grounded in both policies. This second policy changes the decision direction, not the score or the baseline AUROC. When the direction is below, the policies are identical.
 
-- [ ] Inspect score distributions and small response-context angles.
-- [ ] Compare SGI against response-context similarity.
-- [ ] Test alternative summarization inputs using a development protocol.
-- [ ] Select thresholds on development pairs and evaluate once on separate test pairs.
+The midpoint is a heuristic, not an optimal threshold. It ignores dispersion, extreme ratios, class priors and error costs. The means, threshold and diagnostic direction were estimated on the same data used for evaluation, so these are exploratory results. Held-out performance remains unknown. Do not report the highest grid accuracy as validated test accuracy.
+
+## Interpretation and next checks
+
+The original baseline AUROC was 0.7399 for QA, 0.4745 for dialogue and 0.4084 for summarization using -SGI. The new cutoffs do not change that ranking. If the summarization midpoint lies outside the grid, it is still evaluated separately. The test asks whether a different cutoff helps, and whether the reversed mean order warrants a separate direction check. It does not establish why the ranking is reversed.
+
+- [x] Implement and execute the 0.70-1.40 grid on saved scores.
+- [x] Compute class means, midpoint thresholds and decision metrics.
+- [ ] Review whether the midpoint improves accuracy, recall and false alarm rate against threshold 1.00.
+- [ ] Inspect dispersion and extreme ratios, especially for dialogue.
+- [ ] Select a threshold and direction on development pairs and evaluate once on separate test pairs.
 - [ ] Add bootstrap intervals grouped by pair_id.
 
 ## Run evidence
 
-Source score hash and grid settings are saved in `results/HaluEval/threshold_sweep_config.json`. Detailed counts are in `results/HaluEval/threshold_metrics.csv`; accuracy is in `results/HaluEval/threshold_accuracy.csv` and changes from threshold 1.00 are in `results/HaluEval/threshold_accuracy_change_pp.csv`. Preserve these files with the run before changing settings.
+This report was generated locally from saved per-response scores. threshold_sweep_config.json records their SHA-256 and the evaluation settings. threshold_metrics.csv contains the grid metrics; midpoint_estimates.csv and midpoint_metrics.csv contain the heuristic estimates and decisions. Accuracy values in CSV are fractions; this report shows percentages. Zero-denominator ratios are NaN. Invalid rows are excluded and counted. The completed 1.00-2.00 exports remain in the parent results folder.
