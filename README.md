@@ -163,7 +163,7 @@ Manual masked mean pooling and the 384-token limit follow the [encoder's model c
 
 A midpoint is a heuristic, not a guaranteed optimum. It ignores dispersion, extreme values, class priors and error costs. Selecting the best observed grid point also does not establish independent test performance.
 
-**Distribution analysis:** compute class-wise medians, sample standard deviations, quantiles and extreme scores. Central histograms show the shared 0.5th-99.5th percentile window within each task, with counts outside that window. Full-range empirical cumulative distributions retain every usable score. Tables and figures are included in ANALYSIS.md; statistics and plot settings are exported under `results/HaluEval/distributions/`. Scores are not trimmed or modified.
+**Distribution analysis:** compute class-wise medians, sample standard deviations, quantiles and extreme scores. Central histograms show the shared 0.5th-99.5th percentile window within each task, with counts outside that window. A central ECDF uses a linear score axis to show class separation; a full-range ECDF retains the extreme scores on a log axis. Both use the same full-sample cumulative fractions. Tables and figures are included in ANALYSIS.md; statistics and plot settings are exported under `results/HaluEval/distributions/`. Scores are not trimmed or modified.
 
 ## Project structure
 

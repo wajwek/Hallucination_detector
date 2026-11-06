@@ -21,6 +21,7 @@
   ],
   "histogram_bins": 60,
   "histogram_weights": "percent of all valid class responses",
+  "central_range_plot": "ECDF; linear SGI axis; same percentile window as histogram; y range 0-1",
   "full_range_plot": "ECDF; log SGI axis for positive scores",
   "score_transform": "none"
 }

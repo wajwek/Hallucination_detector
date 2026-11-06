@@ -56,6 +56,8 @@ Within the tested grid, QA accuracy reaches 70.565% at 0.85. Its midpoint gives 
 - [x] Compute class-wise means, medians, sample standard deviations, quantiles, maxima and interquartile ranges from the saved scores.
 - [ ] Inspect small response-context angles and dialogue's large score dispersion.
 - [x] Plot per-task central histograms and full-range empirical cumulative distributions, with visual clipping counts.
+- [x] Explain plot axes, visual clipping, the relation between ECDF and decision cutoffs, and the observed patterns for each task.
+- [x] Add a linear central ECDF view to show class separation without hiding the full-range tail or rescaling cumulative fractions.
 - [ ] Plot ROC curves separately for each task.
 - [ ] Inspect representative errors and responses affected by context truncation.
 - [ ] Test whether the synthetic summarization instruction changes the score direction.
