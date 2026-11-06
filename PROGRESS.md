@@ -1,6 +1,6 @@
 # Research progress
 
-Updated: November 5, 2026.
+Updated: November 6, 2026.
 
 This checklist records completed experiments and open questions. A checked item means there is a result or an inspected artifact, not that a hypothesis has been proved. Read [ANALYSIS.md](ANALYSIS.md) for measurements and conclusions.
 
@@ -53,9 +53,10 @@ Within the tested grid, QA accuracy reaches 70.565% at 0.85. Its midpoint gives 
 
 ## Next: explain task differences
 
-- [ ] Compute class-wise medians, standard deviations, quantiles and extreme SGI values.
+- [x] Compute class-wise means, medians, sample standard deviations, quantiles, maxima and interquartile ranges from the saved scores.
 - [ ] Inspect small response-context angles and dialogue's large score dispersion.
-- [ ] Plot per-task score distributions and ROC curves.
+- [x] Plot per-task central histograms and full-range empirical cumulative distributions, with visual clipping counts.
+- [ ] Plot ROC curves separately for each task.
 - [ ] Inspect representative errors and responses affected by context truncation.
 - [ ] Test whether the synthetic summarization instruction changes the score direction.
 - [ ] Compare SGI with response-context cosine similarity on the same pairs.
@@ -79,6 +80,7 @@ Within the tested grid, QA accuracy reaches 70.565% at 0.85. Its midpoint gives 
 | November 5, 2026 | Fixed threshold sweeps | Measured cutoff sensitivity and verified overlapping results |
 | November 5, 2026 | Class-mean midpoint experiment | Compared the original rule with an explicit direction diagnostic |
 | November 5, 2026 | Repeatable saved-score evaluation | Recomputed results without another embedding run; consolidated report and research checklist |
+| November 6, 2026 | Class-wise distribution analysis | Measured quantiles and dispersion; plotted central and full ranges; found opposite mean and median orders for dialogue |
 
 ## Interpretation rules
 

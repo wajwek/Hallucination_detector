@@ -12,6 +12,11 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 
+if __package__:
+    from .sgi_distributions import analyze_distributions
+else:
+    from sgi_distributions import analyze_distributions
+
 TASKS = ["qa", "dialogue", "summarization", "all"]
 
 
@@ -149,7 +154,7 @@ def summarize_scores(frame):
     return pd.DataFrame(rows)
 
 
-def analysis_report(summary, grid, estimates, midpoint_results, start, stop, step):
+def analysis_report(summary, grid, estimates, midpoint_results, start, stop, step, distributions_text=""):
     baseline_lines = ["| Task | Response rows | Mean SGI: grounded | Mean SGI: hallucinated | Cohen's d | AUROC (-SGI) |",
                       "| --- | ---: | ---: | ---: | ---: | ---: |"]
     for row in summary.itertuples():
@@ -225,6 +230,8 @@ The table is recomputed from saved per-response scores. AUROC uses -SGI, so the 
 
 For QA, the paper reports AUROC 0.776 and Cohen's d 0.92 for the same encoder name. The recorded baseline in this repository supports the direction of the effect but does not match those values. Differences in sample selection, long-context handling and denominator stabilization remain candidates to test. No cause has been established, and no confidence interval for the discrepancy is available.
 
+{distributions_text}
+
 ## Experiment 2: compare fixed cutoffs
 
 Predict hallucination when SGI < threshold; equality is grounded. The current grid spans {start:.2f} to {stop:.2f} in steps of {step:.2f}. The earlier 1.00-2.00 sweep is retained in the parent results folder. Accuracy changes use 1.00 as the reference.
@@ -265,7 +272,8 @@ The tables and decision comparisons above are computed from the supplied scores.
 - [x] Evaluate both threshold grids and verify the overlapping results.
 - [x] Evaluate class-mean midpoint thresholds with explicit directions.
 - [x] Compare accuracy, recall and false alarms for the tested approaches.
-- [ ] Inspect SGI quantiles, dispersion and small response-context angles.
+- [x] Describe SGI quantiles and dispersion and plot per-task distributions.
+- [ ] Inspect small response-context angles and individual extreme cases.
 - [ ] Test whether context truncation changes the QA result.
 - [ ] Compare SGI against response-context similarity on the same pairs.
 - [ ] Test alternative summarization instructions using development pairs.
@@ -335,16 +343,18 @@ def run_analysis(project_root=None, scores_path=None, threshold_start=0.70,
 
     summary = summarize_scores(score_frame)
     summary.to_csv(OUTPUT_DIR / "sgi_summary.csv", index=False)
+    distributions, distributions_text = analyze_distributions(
+        score_frame, RESULTS_DIR / "distributions", sha256.hexdigest())
     report = analysis_report(summary, threshold_table, midpoint_estimates, midpoint_results,
-                             THRESHOLD_START, THRESHOLD_STOP, THRESHOLD_STEP)
+                             THRESHOLD_START, THRESHOLD_STOP, THRESHOLD_STEP, distributions_text)
     environment = {name: importlib.metadata.version(name) for name in
-                   ["numpy", "pandas", "pyarrow", "scikit-learn"]}
+                   ["numpy", "pandas", "pyarrow", "scikit-learn", "matplotlib"]}
     (OUTPUT_DIR / "analysis_environment.json").write_text(json.dumps(environment, indent=2) + "\n")
     if update_report:
         (PROJECT_ROOT / "ANALYSIS.md").write_text(report)
     return dict(accuracy=comparison, accuracy_change_pp=accuracy_change,
                 midpoint_estimates=midpoint_estimates, midpoint_metrics=midpoint_results,
-                threshold_metrics=threshold_table, summary=summary, report=report, output_dir=OUTPUT_DIR)
+                threshold_metrics=threshold_table, summary=summary, distributions=distributions, report=report, output_dir=OUTPUT_DIR)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

@@ -21,6 +21,46 @@ The table is recomputed from saved per-response scores. AUROC uses -SGI, so the 
 
 For QA, the paper reports AUROC 0.776 and Cohen's d 0.92 for the same encoder name. The recorded baseline in this repository supports the direction of the effect but does not match those values. Differences in sample selection, long-context handling and denominator stabilization remain candidates to test. No cause has been established, and no confidence interval for the discrepancy is available.
 
+## Distribution analysis
+
+This step describes SGI before investigating individual examples or denominator angles. All statistics use finite scores and binary labels. Standard deviations use the sample definition (ddof=1); quantiles use linear interpolation. No scores are removed to make the distributions look cleaner.
+
+| Task | Class | N | Mean | Median | Sample SD | p95 | p99 | Maximum |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| qa | grounded | 10,000 | 1.066184 | 1.020223 | 0.194983 | 1.422007 | 1.644092 | 5.186504 |
+| qa | hallucinated | 10,000 | 0.885615 | 0.866197 | 0.249845 | 1.320250 | 1.623760 | 3.197216 |
+| dialogue | grounded | 10,000 | 2.142929 | 1.000685 | 81.267614 | 1.297989 | 1.596165 | 7018.469095 |
+| dialogue | hallucinated | 10,000 | 1.057075 | 1.015293 | 0.213779 | 1.449624 | 1.812471 | 5.079202 |
+| summarization | grounded | 10,000 | 2.500901 | 2.423287 | 0.562360 | 3.520466 | 4.163432 | 6.777159 |
+| summarization | hallucinated | 10,000 | 2.683187 | 2.616506 | 0.599990 | 3.766283 | 4.351428 | 6.299610 |
+| all | grounded | 30,000 | 1.903338 | 1.122376 | 46.923535 | 3.063492 | 3.733735 | 7018.469095 |
+| all | hallucinated | 30,000 | 1.541959 | 1.090852 | 0.901193 | 3.295836 | 3.958904 | 6.299610 |
+
+### What the distributions show
+
+**QA:** the reference median is 1.020223, compared with 0.866197 for hallucinations. The middle 50% ranges are [0.929842, 1.167510] and [0.719989, 1.018237]. These intervals describe spread, not confidence limits. Their overlap shows why a single cutoff still makes errors.
+
+**Dialogue:** the reference mean is 2.142929, but its median is 1.000685. The reference maximum is 7018.469095 and sample SD is 81.267614, compared with 5.079202 and 0.213779 for hallucinations. The hallucination median is 1.015293. The mean and median orders disagree in the recorded data. The reference distribution has a long upper tail; its mean is not a good description of a typical response. This helps interpret the small standardized mean difference, but does not identify why those extreme ratios occur. Inspecting their denominator angles remains a separate next step.
+
+**Summarization:** reference and hallucination medians are 2.423287 and 2.616506. Their middle 50% ranges are [2.106034, 2.824938] and [2.250637, 3.040001]. In the recorded run, both the means and medians put hallucinated summaries higher. The reversed direction therefore also appears in the central values; it is not merely a difference between the two maxima. This step does not isolate the effects of the fixed instruction, context truncation or response style.
+
+**Pooled scores:** task-specific locations differ substantially. The pooled distribution mixes these locations and should not replace the separate task comparisons.
+
+### Distribution figures
+
+The left panel shows a shared within-task window from the pooled 0.5th to 99.5th percentile. Each histogram bin is a percentage of all usable responses in that class; the legend counts values outside the displayed window. The right panel shows the complete empirical cumulative distribution, including extremes, on a log score axis. A cumulative value of 0.8 at x means 80% of that class has SGI at most x. Neither display changes the data or metrics.
+
+![SGI distributions for qa](results/HaluEval/distributions/sgi_distribution_qa.png)
+
+![SGI distributions for dialogue](results/HaluEval/distributions/sgi_distribution_dialogue.png)
+
+![SGI distributions for summarization](results/HaluEval/distributions/sgi_distribution_summarization.png)
+
+![SGI distributions for all](results/HaluEval/distributions/sgi_distribution_all.png)
+
+[Full class statistics](results/HaluEval/distributions/sgi_distributions.csv) include minimum, p01, p05, p25, median, p75, p95, p99, p99.9, maximum and interquartile range. [Plot window counts](results/HaluEval/distributions/plot_windows.csv) make visual clipping explicit. [Distribution settings](results/HaluEval/distributions/distribution_config.json) record the source-score hash and plotting choices.
+
+
 ## Experiment 2: compare fixed cutoffs
 
 Predict hallucination when SGI < threshold; equality is grounded. The current grid spans 0.70 to 1.40 in steps of 0.05. The earlier 1.00-2.00 sweep is retained in the parent results folder. Accuracy changes use 1.00 as the reference.
@@ -87,7 +127,8 @@ The tables and decision comparisons above are computed from the supplied scores.
 - [x] Evaluate both threshold grids and verify the overlapping results.
 - [x] Evaluate class-mean midpoint thresholds with explicit directions.
 - [x] Compare accuracy, recall and false alarms for the tested approaches.
-- [ ] Inspect SGI quantiles, dispersion and small response-context angles.
+- [x] Describe SGI quantiles and dispersion and plot per-task distributions.
+- [ ] Inspect small response-context angles and individual extreme cases.
 - [ ] Test whether context truncation changes the QA result.
 - [ ] Compare SGI against response-context similarity on the same pairs.
 - [ ] Test alternative summarization instructions using development pairs.

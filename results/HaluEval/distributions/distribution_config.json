@@ -1,0 +1,26 @@
+{
+  "scores_sha256": "905fd4234c91de1ed0228f71cca8e69a583948ce090e777411a0f92d63589df1",
+  "rows": 60000,
+  "evaluated_rows": 60000,
+  "excluded_rows": 0,
+  "sample_sd_ddof": 1,
+  "quantiles": {
+    "p01": 0.01,
+    "p05": 0.05,
+    "p25": 0.25,
+    "median": 0.5,
+    "p75": 0.75,
+    "p95": 0.95,
+    "p99": 0.99,
+    "p999": 0.999
+  },
+  "quantile_interpolation": "linear",
+  "plot_window_quantiles": [
+    0.005,
+    0.995
+  ],
+  "histogram_bins": 60,
+  "histogram_weights": "percent of all valid class responses",
+  "full_range_plot": "ECDF; log SGI axis for positive scores",
+  "score_transform": "none"
+}

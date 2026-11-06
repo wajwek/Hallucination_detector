@@ -163,6 +163,8 @@ Manual masked mean pooling and the 384-token limit follow the [encoder's model c
 
 A midpoint is a heuristic, not a guaranteed optimum. It ignores dispersion, extreme values, class priors and error costs. Selecting the best observed grid point also does not establish independent test performance.
 
+**Distribution analysis:** compute class-wise medians, sample standard deviations, quantiles and extreme scores. Central histograms show the shared 0.5th-99.5th percentile window within each task, with counts outside that window. Full-range empirical cumulative distributions retain every usable score. Tables and figures are included in ANALYSIS.md; statistics and plot settings are exported under `results/HaluEval/distributions/`. Scores are not trimmed or modified.
+
 ## Project structure
 
 | File or directory | Purpose |
@@ -170,6 +172,7 @@ A midpoint is a heuristic, not a guaranteed optimum. It ignores dispersion, extr
 | [Hallucination_detection_SGI.ipynb](Hallucination_detection_SGI.ipynb) | Dataset preparation, embeddings and SGI scoring |
 | [SGI_threshold_evaluation.ipynb](SGI_threshold_evaluation.ipynb) | Saved-score evaluation entry point |
 | [scripts/analyze_sgi.py](scripts/analyze_sgi.py) | Reusable metrics and report generation |
+| [scripts/sgi_distributions.py](scripts/sgi_distributions.py) | Class-wise statistics and distribution figures |
 | [ANALYSIS.md](ANALYSIS.md) | Measured results and interpretation |
 | [PROGRESS.md](PROGRESS.md) | Experiment milestones and open research tasks |
 | [results/HaluEval/](results/HaluEval/) | Numerical exports, score hashes and run configurations |
